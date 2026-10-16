@@ -1,0 +1,74 @@
+{
+  "factual": [
+    "The Space Needle is located in the city of",
+    "The Colosseum is located in the city of",
+    "Michael Jordan plays the sport of",
+    "The mother tongue of Vladimir Putin is",
+    "Toyota is a car company headquartered in the country of",
+    "The Louvre museum is located in the city of",
+    "Tom Brady plays the sport of",
+    "The capital of Germany is the city of",
+    "The Amazon river flows through the continent of",
+    "Shakespeare wrote his plays in the language of",
+    "The currency used in Japan is the",
+    "The largest planet in our solar system is"
+  ],
+  "ioi": [
+    "When Mary and John went to the store, John gave a drink to",
+    "Then, Sarah and Tom went to the garden. Tom gave a ring to",
+    "After David and Lisa went to the office, Lisa gave a computer to",
+    "While Kate and Paul were working at the school, Paul gave a snack to",
+    "Friends Emma and Jack found a necklace at the station. Jack gave it to",
+    "When Anna and Peter got a basketball at the house, Peter decided to give it to",
+    "Then, Rachel and Chris had a long argument, and afterwards Chris said to",
+    "After Laura and Mark went to the restaurant, Mark gave a drink to"
+  ],
+  "induction": [
+    "Mr. Dursley was the director of a firm called Grunnings. Mr. Dursley was the director of a firm called",
+    "The password is blue-falcon-42. Remember it: the password is blue-falcon-",
+    "Zorblax Industries makes quantum toasters. Everyone loves Zorblax",
+    "alpha beta gamma delta alpha beta gamma",
+    "Item: Red Widget, SKU 88231. Reorder Red Widget, SKU",
+    "Dr. Hannelore Kreutzfeld published the study. Later, Dr. Hannelore"
+  ],
+  "syntax": [
+    "The keys to the cabinet",
+    "The author of the books that the critics praised",
+    "If it rains tomorrow, we will",
+    "She didn't want to go, but she",
+    "The more you practice, the",
+    "Neither the teacher nor the students"
+  ],
+  "code": [
+    "def add(a, b):\n    return",
+    "for i in range(10):\n    print(",
+    "import numpy as",
+    "if x > 0:\n    sign = 1\nelse:\n    sign =",
+    "<html>\n<head>\n<title>My page</title>\n</",
+    "SELECT name, age FROM users WHERE"
+  ],
+  "arithmetic": [
+    "1, 2, 3, 4, 5,",
+    "Monday, Tuesday, Wednesday,",
+    "January, February, March,",
+    "2, 4, 6, 8,",
+    "The year after 1999 is",
+    "10, 20, 30, 40,"
+  ],
+  "narrative": [
+    "Once upon a time, in a small village, there lived a",
+    "The detective looked at the body and said,",
+    "After years of hard work, she finally received her",
+    "The storm was getting worse, so the captain ordered the crew to",
+    "He opened the old box and found a",
+    "The children ran outside to play in the"
+  ],
+  "sentiment": [
+    "I loved this movie. The acting was",
+    "This restaurant was terrible. The food was",
+    "What a wonderful day! I feel so",
+    "The service was slow and the staff were",
+    "My best friend gave me a gift and I was",
+    "The flight was cancelled and I was"
+  ]
+}
