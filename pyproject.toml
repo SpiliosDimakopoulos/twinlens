@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "twinlens"
+version = "0.1.0"
+description = "A digital twin of an LLM's internals that measures how far its own explanations can be trusted."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "torch>=2.2",
+  "numpy",
+  "tokenizers",
+  "huggingface_hub",
+  "pandas",
+  "pydantic>=2",
+  "fastapi",
+  "uvicorn[standard]",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-timeout", "httpx", "ruff", "mypy", "matplotlib", "pyarrow", "psutil", "transformers"]
+
+[tool.setuptools.packages.find]
+include = ["twinlens*", "server*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not slow'"
+markers = ["slow: loads real models; deselect with -m 'not slow'"]
