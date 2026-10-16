@@ -32,8 +32,11 @@ PRESETS = [0.0, 0.5, 2.0, 3.0]
 PROMPTS = [
     ("Michael Jordan plays the sport of", "Factual recall"),
     ("When Mary and John went to the store, John gave a drink to", "Indirect object (IOI)"),
-    ("Mr. Dursley was the director of a firm called Grunnings. Mr. Dursley was the director "
-     "of a firm called", "Induction / copying"),
+    (
+        "Mr. Dursley was the director of a firm called Grunnings. Mr. Dursley was the director "
+        "of a firm called",
+        "Induction / copying",
+    ),
     ("def add(a, b):\n    return", "Code"),
     ("Monday, Tuesday, Wednesday,", "Sequence"),
     ("I loved this movie. The acting was", "Sentiment"),
@@ -109,12 +112,20 @@ def main() -> None:
 
     shared = OUT / "shared.json"
     if not shared.exists():
-        shared.write_text(json.dumps(rounded({
-            "model": client.get("/api/model").json(),
-            "summary": client.get("/api/fidelity/summary").json(),
-            "case_studies": {n: client.get(f"/api/case-studies/{n}").json()
-                             for n in ("induction", "ioi")},
-        })))
+        shared.write_text(
+            json.dumps(
+                rounded(
+                    {
+                        "model": client.get("/api/model").json(),
+                        "summary": client.get("/api/fidelity/summary").json(),
+                        "case_studies": {
+                            n: client.get(f"/api/case-studies/{n}").json()
+                            for n in ("induction", "ioi")
+                        },
+                    }
+                )
+            )
+        )
         print("shared.json", flush=True)
 
     for i, (prompt, kind) in enumerate(PROMPTS):
@@ -136,18 +147,31 @@ def main() -> None:
         whatif: dict[str, dict] = {}
         for s in range(0, len(edits), 16):
             with server.LOCK:
-                payloads = server.whatif_payloads(toks, edits[s:s + 16])
-            for (fk, mk), pl in zip(keys[s:s + 16], payloads, strict=True):
+                payloads = server.whatif_payloads(toks, edits[s : s + 16])
+            for (fk, mk), pl in zip(keys[s : s + 16], payloads, strict=True):
                 whatif.setdefault(fk, {})[mk] = pl
-        data = {"prompt": prompt, "kind": kind, "run": run, "explain": explain, "whatif": whatif,
-                "ablation": head_ablations(prompt), "generation": generation(client, prompt)}
+        data = {
+            "prompt": prompt,
+            "kind": kind,
+            "run": run,
+            "explain": explain,
+            "whatif": whatif,
+            "ablation": head_ablations(prompt),
+            "generation": generation(client, prompt),
+        }
         path.write_text(json.dumps(rounded(data)))
-        print(f"p{i} {kind}: {len(edits)} what-ifs, {path.stat().st_size / 1e6:.1f} MB, "
-              f"{time.perf_counter() - t:.0f}s", flush=True)
+        print(
+            f"p{i} {kind}: {len(edits)} what-ifs, {path.stat().st_size / 1e6:.1f} MB, "
+            f"{time.perf_counter() - t:.0f}s",
+            flush=True,
+        )
 
-    manifest = {"prompts": [{"prompt": p, "kind": k, "file": f"p{i}.json"}
-                            for i, (p, k) in enumerate(PROMPTS)],
-                "presets": PRESETS}
+    manifest = {
+        "prompts": [
+            {"prompt": p, "kind": k, "file": f"p{i}.json"} for i, (p, k) in enumerate(PROMPTS)
+        ],
+        "presets": PRESETS,
+    }
     (OUT / "manifest.json").write_text(json.dumps(manifest))
     print("manifest.json written", flush=True)
 

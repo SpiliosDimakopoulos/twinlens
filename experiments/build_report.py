@@ -65,8 +65,14 @@ def normalise_indent(md: str) -> str:
         # Python-Markdown also needs a blank line between a paragraph and a top-level list.
         is_item = bool(re.match(r"(- |\d+\. )", line))
         prev = out[-1] if out else ""
-        if not in_fence and is_item and prev.strip() and not re.match(r"\s*(- |\d+\. )", prev) \
-                and not prev.startswith(" ") and not prev.startswith("|"):
+        if (
+            not in_fence
+            and is_item
+            and prev.strip()
+            and not re.match(r"\s*(- |\d+\. )", prev)
+            and not prev.startswith(" ")
+            and not prev.startswith("|")
+        ):
             out.append("")
         out.append(line)
     return "\n".join(out)
@@ -83,8 +89,11 @@ def main() -> None:
     md = md.replace("../experiments/figures/", "figures/")
     md = normalise_indent(md)
     # Repository-relative code references become links to GitHub.
-    md = re.sub(r"`((?:tests|twinlens|experiments|server)/[\w/.]+\.py)`",
-                lambda m: f"[`{m.group(1)}`]({REPO}/blob/main/{m.group(1)})", md)
+    md = re.sub(
+        r"`((?:tests|twinlens|experiments|server)/[\w/.]+\.py)`",
+        lambda m: f"[`{m.group(1)}`]({REPO}/blob/main/{m.group(1)})",
+        md,
+    )
     body = markdown.markdown(md, extensions=["tables", "fenced_code", "sane_lists"])
     title = re.search(r"^# (.+)$", md, re.M).group(1)
     html = f"""<!doctype html>
