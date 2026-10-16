@@ -1,5 +1,7 @@
 # TwinLens
 
+[![ci](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml/badge.svg)](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue)
+
 **A digital twin of GPT-2's internals that tells you how far to trust its own explanations.**
 
 Attribution graphs explain an LLM through an interpretable *replacement model*, a "twin" of the
