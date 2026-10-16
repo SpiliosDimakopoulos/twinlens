@@ -76,6 +76,4 @@ def hf_file(repo_id: str, filename: str, revision: str | None = None) -> Path:
     """Download (or reuse) one file from the Hugging Face Hub into the project cache."""
     from huggingface_hub import hf_hub_download
 
-    return Path(
-        hf_hub_download(repo_id, filename, revision=revision, cache_dir=CACHE_DIR / "hub")
-    )
+    return Path(hf_hub_download(repo_id, filename, revision=revision, cache_dir=CACHE_DIR / "hub"))

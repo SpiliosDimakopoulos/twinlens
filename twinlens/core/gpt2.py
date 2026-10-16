@@ -130,12 +130,27 @@ class GPT2:
         names = ["hook_embed", "hook_pos_embed", "ln_final.hook_scale"]
         for layer in range(self.cfg.n_layers):
             b = f"blocks.{layer}."
-            names += [b + s for s in (
-                "hook_resid_pre", "ln1.hook_scale", "attn.hook_q", "attn.hook_k", "attn.hook_v",
-                "attn.hook_pattern", "attn.hook_z", "attn.hook_result", "hook_attn_out",
-                "hook_resid_mid", "ln2.hook_scale", "hook_mlp_in", "mlp.hook_pre",
-                "mlp.hook_post", "hook_mlp_out", "hook_resid_post",
-            )]
+            names += [
+                b + s
+                for s in (
+                    "hook_resid_pre",
+                    "ln1.hook_scale",
+                    "attn.hook_q",
+                    "attn.hook_k",
+                    "attn.hook_v",
+                    "attn.hook_pattern",
+                    "attn.hook_z",
+                    "attn.hook_result",
+                    "hook_attn_out",
+                    "hook_resid_mid",
+                    "ln2.hook_scale",
+                    "hook_mlp_in",
+                    "mlp.hook_pre",
+                    "mlp.hook_post",
+                    "hook_mlp_out",
+                    "hook_resid_post",
+                )
+            ]
         return names
 
     @contextmanager
@@ -159,13 +174,21 @@ class GPT2:
         return x
 
     # ------------------------------------------------------------------ forward
-    def _ln(self, x: torch.Tensor, wb: tuple[torch.Tensor, torch.Tensor], name: str) -> torch.Tensor:
+    def _ln(
+        self, x: torch.Tensor, wb: tuple[torch.Tensor, torch.Tensor], name: str
+    ) -> torch.Tensor:
         x = x - x.mean(-1, keepdim=True)
         scale = self._h(name, (x.pow(2).mean(-1, keepdim=True) + self.cfg.ln_eps).sqrt())
         return x / scale * wb[0] + wb[1]
 
-    def forward(self, tokens: torch.Tensor, stop_at_layer: int | None = None) -> torch.Tensor:
-        """tokens [batch, pos] -> logits [batch, pos, vocab] (or resid if stop_at_layer)."""
+    def forward(
+        self, tokens: torch.Tensor, stop_at_layer: int | None = None, last_only: bool = False
+    ) -> torch.Tensor:
+        """tokens [batch, pos] -> logits [batch, pos, vocab] (or resid if stop_at_layer).
+
+        ``last_only`` unembeds only the final position ([batch, 1, vocab]), which saves a
+        [batch, pos, 50257] allocation in batched patching experiments.
+        """
         if tokens.dim() == 1:
             tokens = tokens[None]
         cfg = self.cfg
@@ -202,7 +225,8 @@ class GPT2:
             resid = self._h(b + "hook_resid_post", resid + mlp_out)
         if stop_at_layer is not None:
             return resid
-        return self.unembed(self._ln(resid, self.ln_f, "ln_final.hook_scale"))
+        normed = self._ln(resid, self.ln_f, "ln_final.hook_scale")
+        return self.unembed(normed[:, -1:] if last_only else normed)
 
     __call__ = forward
 
@@ -255,7 +279,7 @@ class GPT2:
         """Yield (token_id, logits_of_last_position) one step at a time."""
         tokens = self.to_tokens(text)
         for _ in range(max_new_tokens):
-            logits = self.forward(tokens)[0, -1]
+            logits = self.forward(tokens, last_only=True)[0, -1]
             if temperature <= 0:
                 nxt = int(logits.argmax())
             else:

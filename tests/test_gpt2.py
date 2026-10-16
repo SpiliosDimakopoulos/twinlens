@@ -8,8 +8,12 @@ from twinlens.core.weights import CACHE_DIR
 def test_matches_huggingface(model):
     from transformers import GPT2LMHeadModel
 
-    hf = GPT2LMHeadModel.from_pretrained("openai-community/gpt2", cache_dir=CACHE_DIR / "hub").eval()
-    toks = model.to_tokens(["The Eiffel Tower is in the city of", "When Mary and John went to the store, the"])
+    hf = GPT2LMHeadModel.from_pretrained(
+        "openai-community/gpt2", cache_dir=CACHE_DIR / "hub"
+    ).eval()
+    toks = model.to_tokens(
+        ["The Eiffel Tower is in the city of", "When Mary and John went to the store, the"]
+    )
     with torch.no_grad():
         ref = hf(toks).logits
     assert (model(toks) - ref).abs().max() < 1e-3
@@ -33,7 +37,10 @@ def test_hook_result_sums_to_attn_out(model):
     _, cache = model.run_with_cache(toks, ["blocks.5.attn.hook_result", "blocks.5.hook_attn_out"])
     b_O = model.blocks[5]["b_O"]
     torch.testing.assert_close(
-        cache["blocks.5.attn.hook_result"].sum(2) + b_O, cache["blocks.5.hook_attn_out"], atol=1e-4, rtol=1e-4
+        cache["blocks.5.attn.hook_result"].sum(2) + b_O,
+        cache["blocks.5.hook_attn_out"],
+        atol=1e-4,
+        rtol=1e-4,
     )
 
 

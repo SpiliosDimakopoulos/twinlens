@@ -10,3 +10,4 @@ web/dist/
 experiments/results/raw/
 *.egg-info/
 .env
+spike/*.log
