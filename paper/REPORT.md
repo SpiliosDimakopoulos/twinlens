@@ -1,7 +1,7 @@
-# How far can you trust an LLM's interpretable twin?
-### Measuring, explaining and predicting the counterfactual fidelity of transcoder replacement models in GPT-2 small
+# Attribution graphs fail because of the derivatives they drop, not because they are linear
+### Measuring, explaining, predicting and fixing the counterfactual fidelity of transcoder replacement models in GPT-2 small
 
-*Technical report, TwinLens project, October 2026. Code, data and figures: this repository.*
+*Technical report, TwinLens project, October 2026. Code, data and figures: https://github.com/SpiliosDimakopoulos/twinlens*
 
 ---
 
@@ -12,24 +12,33 @@ Attribution graphs explain a language model's computation through an interpretab
 LayerNorm scales are frozen at the clean run. Their edges are read as causal claims: "turn this
 feature off and the output moves by this much". We test those claims directly. On GPT-2 small
 with per-layer transcoders, we make 8,064 feature interventions (ablate or amplify ×2) across 56
-prompts in 8 task families. Each intervention's effect is predicted by a ladder of five twins,
-each of which unfreezes one more component of the real model, and then measured on the real
-model.
+prompts in 8 task families. We predict each intervention's effect with a ladder of twins, each
+unfreezing one more component of the real model, and then measure it on the real model.
 
-Three findings:
+Four findings:
 
 1. **The linear twin that attribution graphs describe is a weak counterfactual predictor.** Its
-   rank correlation with the real effect is ρ = 0.20 [0.15, 0.25]. On edits that measurably move
-   the output, it is within tolerance only 54% [47, 61] of the time. It is worst on
+   rank correlation with the real effect is ρ = 0.20 [0.14, 0.25]. On edits that measurably move
+   the output, it is within tolerance only 54% [47, 60] of the time. It is worst on
    attention-mediated tasks: ρ ≈ 0.01 on IOI and 0.07 on induction.
-2. **Frozen LayerNorm causes most of the error.** It accounts for 88% of the replacement twin's
-   mean error and almost all catastrophic misses (4.3% → 0.2% when LN is made live). Live
-   attention then lifts rank correlation from 0.31 to 0.52 [0.49, 0.56], while the transcoders
-   themselves account for the remaining ~11% of mean error.
-3. **The twin can tell in advance when to trust it.** A logistic "trust model" over nine signals
-   computed from the clean run alone predicts whether the graph twin's prediction will hold.
-   Its AUROC on held-out prompts is 0.93, or 0.84 on edits with a noticeable effect. Edits in
-   the trusted half are within tolerance 99.8% of the time, against 81% in the flagged half.
+2. **The error comes from two frozen components.** Frozen LayerNorm accounts for 88% of the
+   replacement twin's mean error and almost all catastrophic misses. Frozen attention accounts
+   for most of the remaining *ranking* error.
+3. **The fix keeps the graph linear.** Freezing a scale or a pattern drops its first-order
+   derivative. Restoring both terms (the LayerNorm-scale Jacobian and the softmax-pattern
+   Jacobian) still gives an exactly linear twin, so effects stay additive over sources. That
+   linear twin matches the fully nonlinear replacement model on every metric:
+   - ρ 0.20 → **0.53** [0.49, 0.56] (nonlinear twin: 0.52);
+   - sign agreement 67% → **86%**;
+   - catastrophic misses 2.2% → **0.0%**;
+   - IOI ρ 0.01 → **0.59**.
+
+   The attribution graph's problem is therefore not linearity but the derivatives it drops.
+4. **The twin can tell in advance when to trust it.** A logistic "trust model" over nine
+   signals computed from the clean run alone predicts whether today's graph prediction will
+   hold. On held-out prompts its AUROC is 0.93. On held-out *task families* it is 0.93 as well
+   (0.88–0.98). Among the top attribution edges with a noticeable effect, the graph is right
+   54% of the time overall, 71% on the edges the trust model clears, and 22% on those it flags.
 
 We ship this as a live tool. For any feature you click, TwinLens shows the effect predicted by
 every twin level, the real effect, and a trust score computed before the real model runs.
@@ -98,6 +107,8 @@ change it causes in the log-probability of the clean top-1 token, Δlog p, under
 | 3 Replacement | recomputed (ReLU) | frozen | frozen |
 | 4 + live LayerNorm | recomputed | live | frozen |
 | 5 + live attention | recomputed | live | live |
+| Fix A: graph + LN Jacobian | ReLU gates frozen (linear) | frozen + first-order term | frozen |
+| Fix B: graph + LN & attention Jacobians | ReLU gates frozen (linear) | frozen + first-order term | frozen + first-order term |
 | Real GPT-2 | real MLPs | live | live |
 
 In every twin level, each MLP is replaced by its transcoder plus that layer's clean-run error
@@ -210,6 +221,63 @@ activation (−0.66), the number of layers to the output (−0.53), the number o
 features (−0.33), and attention from the output position to the edited token (−0.30). It rises
 with model confidence (+0.56).
 
+### 4.5 The fix: keep the derivatives, keep the linearity
+
+![The fix](../experiments/figures/F5_fix.png)
+
+Freezing a LayerNorm scale σ at its clean value is a zeroth-order approximation of σ. A
+first-order linearisation of the normalised output n = u/σ(u) around the clean point gives
+
+    dn = da − n₀ (n₀ · da) / d,      where a = u / σ₀ is the frozen-scale output.
+
+Freezing σ keeps only `da`. Similarly, freezing an attention pattern drops
+
+    dp = p₀ ⊙ (ds − Σₖ p₀ ds),       with ds = (dq · k₀ + q₀ · dk) / √d_head,
+
+together with the bilinear term in z = p·v, which we remove so that z = p₀v + dp·v₀.
+
+Restoring these terms costs nothing in linearity:
+- **Fix B is affine** in the perturbation, which is tested.
+- **It is the exact first-order expansion** of the gated-feature twin with live LayerNorm and
+  attention. On a 1% edit it agrees with that twin to < 5%, while the frozen versions do not
+  (`tests/test_twin.py`).
+- **In practice, it is the attribution graph you get by *not detaching*** the LayerNorm scales
+  and attention scores when backpropagating.
+
+| twin | ρ (all) | ρ (big) | median cos | sign agree (big) | within tol (big) | catastrophic | mean err |
+|---|---|---|---|---|---|---|---|
+| Graph today (frozen LN + attention) | 0.20 [0.14, 0.25] | 0.24 [0.07, 0.36] | 0.27 [0.25, 0.30] | 66.5% [59.6, 71.7] | 54.2% [47.1, 60.1] | 2.2% [1.7, 2.8] | 0.113 |
+| Fix A: + LN Jacobian | 0.31 [0.25, 0.36] | 0.41 [0.28, 0.53] | 0.50 [0.49, 0.52] | 73.0% [67.4, 78.2] | 74.6% [69.0, 80.1] | 0.2% [0.1, 0.4] | 0.024 |
+| **Fix B: + LN & attention Jacobians** | **0.53 [0.49, 0.56]** | **0.66 [0.59, 0.72]** | **0.62 [0.61, 0.64]** | **85.7% [82.1, 88.8]** | **80.1% [75.6, 84.6]** | **0.0% [0.0, 0.1]** | **0.019** |
+| Nonlinear twin (live LN + attention) | 0.52 [0.49, 0.56] | 0.64 [0.56, 0.71] | 0.62 [0.61, 0.64] | 84.4% [81.6, 87.1] | 79.3% [75.5, 82.8] | 0.2% [0.1, 0.3] | 0.022 |
+
+- **Fix A alone captures the entire benefit of live LayerNorm.** It matches level 4 on every
+  metric while staying linear. It cuts mean error by 79%, and catastrophic misses among the top
+  edges from 4.2% to 0.47%.
+- **Fix B matches or exceeds the nonlinear twin on every metric.** Top-edge catastrophic misses
+  fall to 0.10%. Since Fix B is linear and the nonlinear twin is not, the remaining gap to the
+  real model is due to the transcoders, not to linearisation.
+
+![Per family](../experiments/figures/F6_families.png)
+
+The gains are largest exactly where today's graphs fail: IOI ρ goes from 0.01 to 0.59 and
+induction from 0.07 to 0.48. These are the attention-mediated circuits, where freezing attention
+patterns removes the mechanism itself.
+
+### 4.6 Does the trust model transfer, and what does it buy?
+
+- **Transfer.** Leaving out one task family at a time (training on 7, testing on the 8th), the
+  trust model's AUROC is 0.93 on average, ranging from 0.88 (sentiment) to 0.98 (sequences). It
+  is not memorising task types.
+- **Payoff.** Consider the edges a user would actually inspect: the top attribution edges, on
+  edits with a noticeable effect (n = 718).
+  - Today's graph is within tolerance on 54% of them.
+  - Keeping only the edges the trust model clears (66% of them) raises that to 71%.
+  - The flagged third is right only 22% of the time.
+
+  A one-line filter therefore turns a coin flip into a usable signal, without running a single
+  extra intervention.
+
 ## 5. Limitations
 
 - **One small model, one transcoder family.** GPT-2 small with per-layer transcoders. Cross-layer
@@ -222,6 +290,9 @@ with model confidence (+0.56).
   under rank correlation and cosine, which use no threshold.
 - **Small prompt set** (56 prompts, written by us), and only one prediction target per prompt
   (the top-1 token). The bootstrap is over prompts, so the intervals reflect this.
+- **Graphs built on Fix B are denser.** Edges then also flow through attention *scores* (QK
+  paths), not only OV paths. Effects remain additive and exact for the linear twin, but we
+  have not measured how much this increases graph size after pruning.
 - **The trust model is fitted to this distribution of edits** (top and random features, ablate
   and ×2). Its transfer to other edit types, such as steering with large coefficients, is untested.
 
@@ -238,15 +309,20 @@ with model confidence (+0.56).
   - Attribution graphs with cross-layer transcoders (Ameisen et al., 2025; Lindsey et al.,
     2025), and the open-source `circuit-tracer` library.
 - **Faithfulness of replacement models.** Ameisen et al. report that perturbation agreement
-  decays with depth. Our contribution is to decompose that error into frozen-LN, frozen-attention
-  and transcoder components on a large, sampled set of interventions, and to show that it can be
-  anticipated from the clean run.
+  decays with depth. Our contributions:
+  - decomposing that error into frozen-LN, frozen-attention and transcoder components, on a
+    large sampled set of interventions;
+  - showing that restoring the two dropped first-order terms removes it without giving up
+    linearity;
+  - showing that the remaining failures can be anticipated from the clean run.
 
 ## 7. Reproducing
 
 ```
 make test           # 33 tests, including the reproduction suite
 make sweep          # 8,064 edits, ~40 min on a laptop CPU (resumable)
+python experiments/extend_sweep.py --modes linear_lnjac     # Fix A, ~10 min
+python experiments/extend_sweep.py --modes linear_fulljac   # Fix B, ~15 min
 make analyze        # summary.json, trust_model.json, figures
 make serve          # dashboard at http://localhost:8000
 ```

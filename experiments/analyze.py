@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT))
 
 from twinlens.fidelity.signals import SIGNALS  # noqa: E402
 from twinlens.fidelity.trust import TrustModel, auroc, fit_logistic, transform  # noqa: E402
-from twinlens.twin.replacement import TWIN_LEVELS  # noqa: E402
+from twinlens.twin.replacement import FIX_LEVELS, TWIN_LEVELS  # noqa: E402
 
 RESULTS = ROOT / "experiments" / "results"
 FIGS = ROOT / "experiments" / "figures"
@@ -39,12 +39,16 @@ LEVEL_LABELS = {
     "replacement": "Replacement",
     "replacement_ln": "+ live LayerNorm",
     "replacement_full": "+ live attention",
+    "linear_lnjac": "Graph + LN Jacobian",
+    "linear_fulljac": "Graph + LN & attention Jacobians",
 }
+# The proposed fix, compared against today's graph twin and the best nonlinear twin.
+FIX_COMPARE = ["linear", "linear_lnjac", "linear_fulljac", "replacement_full"]
 
 
 # ------------------------------------------------------------------- metrics
 def add_derived(df: pd.DataFrame) -> pd.DataFrame:
-    for lv in TWIN_LEVELS:
+    for lv in [*TWIN_LEVELS, *(f for f in FIX_LEVELS if f"{f}_dlogp" in df)]:
         err = (df[f"{lv}_dlogp"] - df.real_dlogp).abs()
         df[f"{lv}_err"] = err
         df[f"{lv}_ok"] = err <= 0.1 + 0.25 * df.real_dlogp.abs()
@@ -152,7 +156,42 @@ def trust_analysis(df: pd.DataFrame, level: str, n_folds: int = 5) -> tuple[dict
         "single_signal_auroc": singles,
         "coefficients": dict(zip(SIGNALS, w.tolist(), strict=True)),
         "calibration": calib,
+        "_cv_scores": scores,
     }, model
+
+
+def trust_transfer(df: pd.DataFrame, level: str) -> dict[str, float]:
+    """Leave-one-task-family-out AUROC: train on 7 families, test on the unseen 8th."""
+    y = torch.tensor(df[f"{level}_ok"].to_numpy(), dtype=torch.float32)
+    X = design(df)
+    out = {}
+    for fam in sorted(df.category.unique()):
+        test = torch.tensor((df.category == fam).to_numpy())
+        mu, sd = X[~test].mean(0), X[~test].std(0) + 1e-6
+        w, b = fit_logistic((X[~test] - mu) / sd, y[~test])
+        out[fam] = auroc(((X[test] - mu) / sd) @ w + b, y[test])
+    out["mean"] = float(np.nanmean(list(out.values())))
+    return out
+
+
+def trusted_edges_payoff(df: pd.DataFrame, scores: torch.Tensor, level: str) -> dict:
+    """On the edges a user would inspect (top attribution edges): how often is the graph right,
+    overall vs. on the ones the trust model clears (CV scores >= 0.7), and what share is kept."""
+    top = (df.selection == "top").to_numpy()
+    ok = df[f"{level}_ok"].to_numpy()
+    sc = scores.numpy()
+    big = df.real_big.to_numpy()
+    res = {}
+    for name, m in [("all_top_edges", top), ("top_edges_big_effect", top & big)]:
+        kept = m & (sc >= 0.7)
+        res[name] = {
+            "ok_all": float(ok[m].mean()),
+            "ok_trusted": float(ok[kept].mean()),
+            "ok_flagged": float(ok[m & (sc < 0.7)].mean()),
+            "kept_share": float(kept.sum() / m.sum()),
+            "n": int(m.sum()),
+        }
+    return res
 
 
 # ----------------------------------------------------------------------- main
@@ -203,6 +242,26 @@ def main() -> None:
     trust, model = trust_analysis(df, TRUST_LEVEL)
     trust_full, _ = trust_analysis(df, "replacement_full")
     model.save(RESULTS / "trust_model.json")
+    cv_scores = trust.pop("_cv_scores")
+    trust_full.pop("_cv_scores")
+    trust["transfer_lofo"] = trust_transfer(df, TRUST_LEVEL)
+    trust["payoff"] = trusted_edges_payoff(df, cv_scores, TRUST_LEVEL)
+
+    fix_levels = [lv for lv in FIX_COMPARE if f"{lv}_dlogp" in df]
+    fix = {
+        "levels": fix_levels,
+        "ladder": {lv: bootstrap(df, lambda d, lv=lv: level_metrics(d, lv)) for lv in fix_levels},
+        "by_category_spearman": {
+            str(c): {
+                lv: float(g[[f"{lv}_dlogp", "real_dlogp"]].corr(method="spearman").iloc[0, 1])
+                for lv in fix_levels
+            }
+            for c, g in df.groupby("category")
+        },
+        "top_edges_catastrophic": {
+            lv: float(df[df.selection == "top"][f"{lv}_catastrophic"].mean()) for lv in fix_levels
+        },
+    }
 
     summary = {
         "n_edits": len(df),
@@ -215,6 +274,7 @@ def main() -> None:
         "breakdown": by,
         "trust": trust,
         "trust_replacement_full": {k: trust_full[k] for k in ("cv_auroc", "base_rate")},
+        "fix": fix,
         "real_effect": {
             "median_abs_dlogp": float(df.real_dlogp.abs().median()),
             "frac_big": float(df.real_big.mean()),
@@ -250,6 +310,13 @@ def main() -> None:
         },
     )
     print("single", {k: round(v, 3) for k, v in trust["single_signal_auroc"].items()})
+    print(
+        "transfer (leave-one-family-out)",
+        {k: round(v, 3) for k, v in trust["transfer_lofo"].items()},
+    )
+    print("payoff", trust["payoff"])
+    print("fix", {lv: {k: round(v[0], 3) for k, v in m.items()} for lv, m in fix["ladder"].items()})
+    print("fix top-edge catastrophic", fix["top_edges_catastrophic"])
 
     from figures import make_figures  # local module, imported late so analysis runs headless
 

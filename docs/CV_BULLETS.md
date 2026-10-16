@@ -9,19 +9,21 @@ test suite. Keep them in sync if you re-run anything.
 - Built a "digital twin" of GPT-2's internals: a transcoder-based replacement model that
   predicts the effect of any feature intervention. The real model then verifies each
   prediction, and the dashboard shows predicted vs actual live.
-- Ran an 8,064-intervention study across 56 prompts. Attribution-graph-style twins rank effects
-  poorly (Spearman ρ = 0.20). Frozen LayerNorm causes 88% of their error; unfreezing it cuts
-  catastrophic misses from 4.3% to 0.2%, and live attention raises ρ to 0.52.
+- Ran an 8,064-intervention study across 56 prompts. Attribution graphs predict intervention
+  effects poorly (Spearman ρ = 0.20), and the error traces to two derivatives they drop
+  (LayerNorm scale, attention pattern).
+- Proposed and validated a fix that keeps graphs linear: restoring both Jacobians raises ρ from
+  0.20 to 0.53 (matching the nonlinear model), cuts catastrophic misses from 2.2% to 0.0%, and
+  lifts IOI from 0.01 to 0.59.
 - Designed a trust model that predicts, before running the real model, whether an explanation
-  will hold. AUROC 0.93 on held-out prompts; the trusted half is right 99.8% of the time vs 81%
-  for the flagged half.
+  will hold: AUROC 0.93 on held-out prompts and on held-out task families.
 - Wrote a hookable GPT-2 from scratch with memory-mapped weights (<1 GB RAM on a laptop CPU).
   It reproduces published circuits (induction heads, IOI name movers, ROME causal tracing),
   pinned in a 33-test suite plus Playwright end-to-end tests.
 
-*Short version (1 line):* Built TwinLens, an LLM interpretability "digital twin" that predicts
-intervention effects inside GPT-2 and scores how far each explanation can be trusted (AUROC
-0.93); found frozen LayerNorm causes 88% of attribution-graph error.
+*Short version (1 line):* Built TwinLens, an LLM interpretability "digital twin" for GPT-2.
+Showed that attribution graphs fail because of two dropped derivatives, and that restoring them
+raises counterfactual accuracy from ρ 0.20 to 0.53 while keeping graphs linear.
 
 ## Βιογραφικό (Ελληνικά)
 
@@ -29,13 +31,14 @@ intervention effects inside GPT-2 and scores how far each explanation can be tru
 - Ανέπτυξα έναν «ψηφιακό δίδυμο» του εσωτερικού του GPT-2: ένα μοντέλο αντικατάστασης με
   transcoders που προβλέπει το αποτέλεσμα κάθε παρέμβασης σε features. Το πραγματικό μοντέλο
   επαληθεύει κάθε πρόβλεψη, και το dashboard δείχνει πρόβλεψη και πραγματικότητα live.
-- Έτρεξα μελέτη με 8.064 παρεμβάσεις σε 56 prompts. Οι twins τύπου attribution graph
-  κατατάσσουν τα αποτελέσματα φτωχά (Spearman ρ = 0,20). Το «παγωμένο» LayerNorm προκαλεί το
-  88% του σφάλματός τους· όταν γίνει live, οι καταστροφικές αστοχίες πέφτουν από 4,3% σε 0,2%,
-  και η live attention ανεβάζει το ρ στο 0,52.
+- Έτρεξα μελέτη με 8.064 παρεμβάσεις σε 56 prompts. Τα attribution graphs προβλέπουν φτωχά
+  το αποτέλεσμα των παρεμβάσεων (Spearman ρ = 0,20), και το σφάλμα οφείλεται σε δύο
+  παραγώγους που πετάνε (LayerNorm και attention pattern).
+- Πρότεινα και επαλήθευσα διόρθωση που κρατά τα graphs γραμμικά: με τις δύο Jacobians το ρ
+  ανεβαίνει από 0,20 σε 0,53 (όσο και το μη γραμμικό μοντέλο), οι καταστροφικές αστοχίες
+  πέφτουν από 2,2% σε 0,0%, και στο IOI από 0,01 σε 0,59.
 - Σχεδίασα trust model που προβλέπει, πριν τρέξει το πραγματικό μοντέλο, αν μια εξήγηση θα
-  ισχύσει: AUROC 0,93 σε prompts που δεν είχε δει. Στο μισό με την υψηλότερη εμπιστοσύνη
-  πετυχαίνει 99,8%, έναντι 81% στο μισό που επισημαίνει ως αναξιόπιστο.
+  ισχύσει: AUROC 0,93 σε prompts και σε κατηγορίες εργασιών που δεν είχε δει.
 - Υλοποίησα από το μηδέν GPT-2 με hooks και memory-mapped βάρη (<1 GB RAM σε CPU laptop). Αναπαράγει
   δημοσιευμένα κυκλώματα (induction heads, IOI, ROME causal tracing), καλυμμένα από 33 tests
   και end-to-end tests με Playwright.
@@ -50,8 +53,9 @@ intervention effects inside GPT-2 and scores how far each explanation can be tru
 >
 > Across 8,064 interventions:
 > - The linear twin that attribution graphs describe ranks real effects poorly (ρ = 0.20).
-> - 88% of its error comes from one assumption: frozen LayerNorm. Unfreezing it cuts
->   catastrophic misses from 4.3% to 0.2%.
+> - The error comes from two derivatives the graph drops (LayerNorm and attention). Put them
+>   back and the graph stays linear but becomes as faithful as the full nonlinear model:
+>   ρ 0.20 → 0.53, catastrophic misses 2.2% → 0.0%.
 > - A small trust model can predict *in advance*, from the clean run alone, when an
 >   explanation will hold (AUROC 0.93 on held-out prompts).
 >

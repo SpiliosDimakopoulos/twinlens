@@ -20,10 +20,14 @@ From 8,064 interventions on GPT-2 small; full write-up in [`paper/REPORT.md`](pa
 
 | | |
 |---|---|
-| **The graph twin is a weak counterfactual predictor** | rank correlation with the real effect ρ = **0.20**; within tolerance only **54%** of the time on edits that measurably move the output |
-| **Frozen LayerNorm is the main culprit** | **88%** of the replacement twin's error; making LN live cuts catastrophic misses **4.3% → 0.2%** |
-| **Live attention fixes ranking** | ρ **0.31 → 0.52**, sign agreement **73% → 84%** |
-| **The twin can tell when it is wrong** | trust model AUROC **0.93** on held-out prompts (0.84 on high-effect edits); right **99.8%** of the time in its trusted half vs 81% in the flagged half |
+| **Attribution graphs are weak counterfactual predictors** | the graph twin's rank correlation with the real effect is ρ = **0.20**; on edits that measurably move the output it is within tolerance only **54%** of the time (IOI: ρ = 0.01) |
+| **The cause is two dropped derivatives** | frozen LayerNorm causes **88%** of the error and nearly all catastrophic misses; frozen attention causes the ranking errors |
+| **The fix keeps the graph linear** | restoring the LayerNorm and attention-pattern Jacobians gives a still-linear graph that matches the nonlinear twin: ρ **0.20 → 0.53**, sign agreement **67% → 86%**, catastrophic misses **2.2% → 0.0%**, IOI **0.01 → 0.59** |
+| **The twin knows when it is wrong** | a trust model predicts, from the clean run alone, when a graph prediction will fail: AUROC **0.93** on held-out prompts *and* on held-out task families; on the edges users inspect it lifts graph accuracy from 54% to 71% |
+
+<p>
+  <img src="experiments/figures/F5_fix.png" width="100%" alt="Keeping two derivatives makes the linear graph as faithful as the nonlinear twin">
+</p>
 
 <p>
   <img src="experiments/figures/F1_ladder.png" width="49%" alt="Twin ladder metrics">

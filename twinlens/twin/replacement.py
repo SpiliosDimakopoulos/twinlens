@@ -31,18 +31,45 @@ import torch
 from twinlens.core.gpt2 import GPT2
 from twinlens.twin.transcoders import TranscoderSet, layernorm_pre
 
-Mode = Literal["direct", "linear", "replacement", "replacement_ln", "replacement_full", "real"]
+Mode = Literal[
+    "direct",
+    "linear",
+    "linear_lnjac",
+    "linear_lnlive",
+    "linear_fulljac",
+    "linear_live",
+    "replacement",
+    "replacement_ln",
+    "replacement_full",
+    "real",
+]
 
 # The twin "ladder": each level unfreezes one more component of the real model.
-#                      features      LN scales  attention
-LEVELS: dict[str, tuple[str, bool, bool]] = {
-    "direct": ("frozen", True, True),
-    "linear": ("gated", True, True),
-    "replacement": ("relu", True, True),
-    "replacement_ln": ("relu", False, True),
-    "replacement_full": ("relu", False, False),
+# LayerNorm and attention patterns are each "frozen" (clean values, as in attribution graphs),
+# "jacobian" (clean values plus their exact first-order change: the twin stays linear), or
+# "live" (recomputed).
+#                      features   LayerNorm    attention
+LEVELS: dict[str, tuple[str, str, str]] = {
+    "direct": ("frozen", "frozen", "frozen"),
+    "linear": ("gated", "frozen", "frozen"),
+    "replacement": ("relu", "frozen", "frozen"),
+    "replacement_ln": ("relu", "live", "frozen"),
+    "replacement_full": ("relu", "live", "live"),
+    # Proposed fixes: the graph twin, keeping the derivatives that attribution graphs drop.
+    "linear_lnjac": ("gated", "jacobian", "frozen"),
+    "linear_fulljac": ("gated", "jacobian", "jacobian"),
+    # References for testing the Jacobians (not linear).
+    "linear_lnlive": ("gated", "live", "frozen"),
+    "linear_live": ("gated", "live", "live"),
 }
-TWIN_LEVELS: tuple[Mode, ...] = tuple(LEVELS)  # type: ignore[assignment]
+TWIN_LEVELS: tuple[Mode, ...] = (
+    "direct",
+    "linear",
+    "replacement",
+    "replacement_ln",
+    "replacement_full",
+)
+FIX_LEVELS: tuple[Mode, ...] = ("linear_lnjac", "linear_fulljac")
 
 
 @dataclass(frozen=True)
@@ -58,7 +85,9 @@ class CleanTrace:
     tokens: torch.Tensor  # [1, pos]
     logits: torch.Tensor  # [pos, vocab]
     patterns: dict[int, torch.Tensor]  # [1, head, q, k]
+    qkv: dict[int, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]  # clean q, k, v [1,pos,h,dh]
     scales: dict[str, torch.Tensor]  # LN scale hooks -> [1, pos, 1]
+    normalized: dict[str, torch.Tensor]  # LN normalized-output hooks -> [1, pos, d_model]
     resid_mid: dict[int, torch.Tensor]  # [1, pos, d_model]
     mlp_out: dict[int, torch.Tensor]  # real MLP outputs [1, pos, d_model]
     pre: dict[int, torch.Tensor]  # transcoder pre-activations [pos, d_sae]
@@ -85,13 +114,18 @@ class Twin:
         m, L = self.model, self.model.cfg.n_layers
         if tokens.dim() == 1:
             tokens = tokens[None]
-        names = ["ln_final.hook_scale"]
+        names = ["ln_final.hook_scale", "ln_final.hook_normalized"]
         for l in range(L):
             b = f"blocks.{l}."
             names += [
                 b + "attn.hook_pattern",
+                b + "attn.hook_q",
+                b + "attn.hook_k",
+                b + "attn.hook_v",
                 b + "ln1.hook_scale",
                 b + "ln2.hook_scale",
+                b + "ln1.hook_normalized",
+                b + "ln2.hook_normalized",
                 b + "hook_resid_mid",
                 b + "hook_mlp_out",
             ]
@@ -108,7 +142,9 @@ class Twin:
             tokens=tokens,
             logits=logits[0],
             patterns={l: cache[f"blocks.{l}.attn.hook_pattern"] for l in range(L)},
+            qkv={l: tuple(cache[f"blocks.{l}.attn.hook_{x}"] for x in "qkv") for l in range(L)},
             scales={k: v for k, v in cache.items() if k.endswith("hook_scale")},
+            normalized={k: v for k, v in cache.items() if k.endswith("hook_normalized")},
             resid_mid={l: cache[f"blocks.{l}.hook_resid_mid"] for l in range(L)},
             mlp_out={l: cache[f"blocks.{l}.hook_mlp_out"] for l in range(L)},
             pre=pre,
@@ -143,33 +179,83 @@ class Twin:
 
                 hooks.append((f"blocks.{l}.hook_mlp_out", edit_out))
         else:
-            features, freeze_ln, freeze_attn = LEVELS[mode]
-            if freeze_ln:
+            features, ln_mode, attn_mode = LEVELS[mode]
+            if ln_mode != "live":
                 for name, s in trace.scales.items():
                     hooks.append((name, lambda x, _, s=s: s.expand_as(x)))
-            if freeze_attn:
+            if ln_mode == "jacobian":
+                # n(u) = u / sigma(u) linearised at the clean point n0 = u0 / sigma0:
+                #   dn = da - n0 (n0 . da) / d,  with a = u / sigma0 (frozen-scale output).
+                # Freezing the scale keeps only `da`; this restores the dropped term exactly.
+                d = m.cfg.d_model
+                for name, n0 in trace.normalized.items():
+
+                    def ln_jac(a: torch.Tensor, _: str, n0=n0) -> torch.Tensor:
+                        da = a - n0
+                        return a - n0 * (da * n0).sum(-1, keepdim=True) / d
+
+                    hooks.append((name, ln_jac))
+            if attn_mode == "frozen":
                 for l in range(L):
                     pat = trace.patterns[l]
                     hooks.append(
                         (f"blocks.{l}.attn.hook_pattern", lambda x, _, p=pat: p.expand_as(x))
                     )
+            elif attn_mode == "jacobian":
+                hooks += self._attn_jacobian_hooks(trace)
             store: dict[int, torch.Tensor] = {}
             for l in range(start, L):
                 if features != "frozen":
+                    # The transcoder reads LayerNormPre(resid_mid) == ln2's normalized output,
+                    # which already reflects the level's LayerNorm treatment.
                     hooks.append(
-                        (f"blocks.{l}.hook_resid_mid", lambda x, _, l=l: store.__setitem__(l, x))
+                        (
+                            f"blocks.{l}.ln2.hook_normalized",
+                            lambda x, _, l=l: store.__setitem__(l, x),
+                        )
                     )
                 hooks.append(
                     (
                         f"blocks.{l}.hook_mlp_out",
-                        self._twin_mlp(trace, features, freeze_ln, l, store, by_layer.get(l, [])),
+                        self._twin_mlp(trace, features, l, store, by_layer.get(l, [])),
                     )
                 )
 
         with m.hooks(hooks):
             return m(tokens, last_only=True)[:, -1]
 
-    def _twin_mlp(self, trace: CleanTrace, features: str, freeze_ln: bool, l: int, store, items):
+    def _attn_jacobian_hooks(self, trace: CleanTrace) -> list:
+        """First-order expansion of attention around the clean run:
+        ds = (dq . k0 + q0 . dk) / sqrt(d_head),   dp = p0 * (ds - sum_k p0 ds),
+        z  = p0 v + dp v0      (the second-order term dp dv is removed)."""
+        hooks: list = []
+        scale = self.model.cfg.d_head**0.5
+        for l in range(self.model.cfg.n_layers):
+            q0, k0, v0 = trace.qkv[l]
+            p0 = trace.patterns[l]
+            cur: dict[str, torch.Tensor] = {}
+            for x in "qkv":
+                hooks.append(
+                    (f"blocks.{l}.attn.hook_{x}", lambda t, _, c=cur, x=x: c.__setitem__(x, t))
+                )
+
+            def pattern(_p: torch.Tensor, _: str, c=cur, q0=q0, k0=k0, p0=p0) -> torch.Tensor:
+                dq, dk = c["q"] - q0, c["k"] - k0
+                ds = (
+                    torch.einsum("bqhe,bkhe->bhqk", dq, k0)
+                    + torch.einsum("bqhe,bkhe->bhqk", q0, dk)
+                ) / scale
+                c["dp"] = p0 * (ds - (p0 * ds).sum(-1, keepdim=True))
+                return p0 + c["dp"]
+
+            def z(zt: torch.Tensor, _: str, c=cur, v0=v0) -> torch.Tensor:
+                return zt - torch.einsum("bhqk,bkhe->bqhe", c["dp"], c["v"] - v0)
+
+            hooks.append((f"blocks.{l}.attn.hook_pattern", pattern))
+            hooks.append((f"blocks.{l}.attn.hook_z", z))
+        return hooks
+
+    def _twin_mlp(self, trace: CleanTrace, features: str, l: int, store, items):
         """Replacement for ``hook_mlp_out`` at layer ``l``.
 
         Activations are sparse, so only the needed columns are computed:
@@ -178,7 +264,6 @@ class Twin:
         * relu: full encode (new features may turn on), then a sparse decode.
         """
         tc = self.tcs[l]
-        scale = trace.scales[f"blocks.{l}.ln2.hook_scale"] if freeze_ln else None
         clean_acts = trace.acts[l]
 
         def edit_deltas(out: torch.Tensor) -> torch.Tensor:
@@ -203,7 +288,7 @@ class Twin:
             col = {int(f): i for i, f in enumerate(idx.tolist())}
 
             def linear_fn(out: torch.Tensor, _: str) -> torch.Tensor:
-                acts = (layernorm_pre(store[l], scale) @ W_enc + b_enc) * gate
+                acts = (store[l] @ W_enc + b_enc) * gate
                 for row, e in items:
                     acts[row, e.pos, col[e.feature]] = e.value
                 return acts @ W_dec + tc.b_dec + trace.error[l]
@@ -211,7 +296,7 @@ class Twin:
             return linear_fn
 
         def replacement_fn(out: torch.Tensor, _: str) -> torch.Tensor:
-            acts = tc.encode(layernorm_pre(store[l], scale))
+            acts = tc.encode(store[l])
             for row, e in items:
                 acts[row, e.pos, e.feature] = e.value
             idx = acts.flatten(0, 1).any(0).nonzero()[:, 0]

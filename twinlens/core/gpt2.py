@@ -6,6 +6,7 @@ interpretability literature:
     hook_embed, hook_pos_embed
     blocks.{l}.hook_resid_pre / hook_resid_mid / hook_resid_post
     blocks.{l}.ln1.hook_scale, blocks.{l}.ln2.hook_scale, ln_final.hook_scale
+    blocks.{l}.ln1.hook_normalized, ... (centred / scale, before the LN affine)
     blocks.{l}.attn.hook_q / hook_k / hook_v / hook_z        [batch, pos, head, d_head]
     blocks.{l}.attn.hook_pattern                              [batch, head, query, key]
     blocks.{l}.attn.hook_result                               [batch, pos, head, d_model]
@@ -127,7 +128,7 @@ class GPT2:
 
     # -------------------------------------------------------------------- hooks
     def hook_names(self) -> list[str]:
-        names = ["hook_embed", "hook_pos_embed", "ln_final.hook_scale"]
+        names = ["hook_embed", "hook_pos_embed", "ln_final.hook_scale", "ln_final.hook_normalized"]
         for layer in range(self.cfg.n_layers):
             b = f"blocks.{layer}."
             names += [
@@ -135,6 +136,7 @@ class GPT2:
                 for s in (
                     "hook_resid_pre",
                     "ln1.hook_scale",
+                    "ln1.hook_normalized",
                     "attn.hook_q",
                     "attn.hook_k",
                     "attn.hook_v",
@@ -144,6 +146,7 @@ class GPT2:
                     "hook_attn_out",
                     "hook_resid_mid",
                     "ln2.hook_scale",
+                    "ln2.hook_normalized",
                     "hook_mlp_in",
                     "mlp.hook_pre",
                     "mlp.hook_post",
@@ -179,7 +182,8 @@ class GPT2:
     ) -> torch.Tensor:
         x = x - x.mean(-1, keepdim=True)
         scale = self._h(name, (x.pow(2).mean(-1, keepdim=True) + self.cfg.ln_eps).sqrt())
-        return x / scale * wb[0] + wb[1]
+        normed = self._h(name.replace("hook_scale", "hook_normalized"), x / scale)
+        return normed * wb[0] + wb[1]
 
     def forward(
         self, tokens: torch.Tensor, stop_at_layer: int | None = None, last_only: bool = False

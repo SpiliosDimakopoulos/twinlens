@@ -252,4 +252,115 @@ def make_figures(summary: dict, df, out: Path) -> None:
     decay_figure(summary, out)
     decomposition_figure(summary, out)
     trust_figure(summary, out)
+    if "fix" in summary:
+        fix_figure(summary, out)
+        family_figure(summary, out)
     print(f"figures -> {out}")
+
+
+FIX_COLORS = {"linear": BASE, "linear_lnjac": LADDER[2], "linear_fulljac": LADDER[4]}
+
+
+def fix_figure(summary: dict, out: Path) -> None:
+    """Today's graph twin vs. the same linear twin keeping LN / attention derivatives, with the
+    nonlinear twin as an outlined reference bar."""
+    fix = summary["fix"]
+    levels = fix["levels"]
+    labels = {
+        "linear": "Graph\ntoday",
+        "linear_lnjac": "+ LN\nJacobian",
+        "linear_fulljac": "+ LN & attn\nJacobians",
+        "replacement_full": "Nonlinear\ntwin (ref.)",
+    }
+    panels = [
+        ("spearman", "Rank correlation with real effect (ρ)", False),
+        ("median_cos", "Median cosine of Δlogits", False),
+        ("within_tol_big", "Within tolerance, edits that matter", True),
+        ("catastrophic", "Catastrophic misses (|error| > 1 nat)", True),
+    ]
+    fig, axes = plt.subplots(1, 4, figsize=(14, 3.9))
+    for ax, (key, title, pct) in zip(axes, panels, strict=True):
+        vals = [fix["ladder"][lv][key] for lv in levels]
+        pts = [v[0] for v in vals]
+        err = [
+            [p - v[1] for p, v in zip(pts, vals, strict=True)],
+            [v[2] - p for p, v in zip(pts, vals, strict=True)],
+        ]
+        x = list(range(len(levels)))
+        for xi, lv, p in zip(x, levels, pts, strict=True):
+            ref = lv == "replacement_full"
+            ax.bar(
+                xi,
+                p,
+                width=0.62,
+                color=SURFACE if ref else FIX_COLORS[lv],
+                edgecolor=INK2 if ref else SURFACE,
+                linewidth=1.2 if ref else 2,
+                linestyle=(0, (3, 2)) if ref else "-",
+                zorder=2,
+            )
+        ax.errorbar(x, pts, yerr=err, fmt="none", ecolor=INK2, elinewidth=1, capsize=3, zorder=3)
+        for xi, p, v in zip(x, pts, vals, strict=True):
+            txt = (f"{p:.1%}" if p < 0.1 else f"{p:.0%}") if pct else f"{p:.2f}"
+            ax.text(xi, v[2], txt, ha="center", va="bottom", fontsize=8.5, color=INK2)
+        ax.set_title(title, fontsize=10)
+        ax.set_xticks(x, [labels[lv] for lv in levels], fontsize=7.5)
+        ax.tick_params(axis="x", length=0)
+        if pct:
+            dec = 1 if max(pts) < 0.05 else 0
+            ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0, decimals=dec))
+        ax.axhline(0, color=BASE, linewidth=1, zorder=1)
+    fig.suptitle(
+        "Keeping two derivatives makes the linear graph as faithful as the nonlinear twin",
+        x=0.01,
+        ha="left",
+        fontsize=12,
+        fontweight="bold",
+        color=INK,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    _save(fig, out, "F5_fix")
+
+
+def family_figure(summary: dict, out: Path) -> None:
+    """Dumbbell per task family: graph today -> graph with Jacobians, nonlinear twin as a ring."""
+    by = summary["fix"]["by_category_spearman"]
+    fams = sorted(by, key=lambda f: by[f]["linear"])
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    for i, f in enumerate(fams):
+        a, b, r = by[f]["linear"], by[f]["linear_fulljac"], by[f]["replacement_full"]
+        ax.plot([a, b], [i, i], color=GRID, linewidth=3, zorder=1, solid_capstyle="round")
+        ax.scatter([a], [i], s=60, color=BASE, edgecolor=SURFACE, linewidth=1.5, zorder=3)
+        ax.scatter([b], [i], s=70, color=LADDER[4], edgecolor=SURFACE, linewidth=1.5, zorder=4)
+        ax.scatter([r], [i], s=110, facecolor="none", edgecolor=INK2, linewidth=1.2, zorder=5)
+    ax.set_yticks(range(len(fams)), [f.replace("ioi", "IOI") for f in fams])
+    ax.grid(axis="x"), ax.grid(axis="y", visible=False)
+    ax.axvline(0, color=BASE, linewidth=1)
+    ax.set_xlabel("Rank correlation with the real effect (ρ)")
+    ax.set_title("Attention-heavy tasks gain most: IOI 0.01 → 0.59")
+    from matplotlib.lines import Line2D
+
+    handles = [
+        Line2D([], [], marker="o", linestyle="", color=BASE, markersize=7, label="Graph today"),
+        Line2D(
+            [],
+            [],
+            marker="o",
+            linestyle="",
+            color=LADDER[4],
+            markersize=7,
+            label="Graph + Jacobians",
+        ),
+        Line2D(
+            [],
+            [],
+            marker="o",
+            linestyle="",
+            markerfacecolor="none",
+            markeredgecolor=INK2,
+            markersize=9,
+            label="Nonlinear twin",
+        ),
+    ]
+    ax.legend(handles=handles, loc="upper left", fontsize=8.5, labelcolor=INK2)
+    _save(fig, out, "F6_families")
