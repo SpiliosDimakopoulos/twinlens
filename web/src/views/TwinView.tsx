@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { api, generate, type ExplainResponse, type Feature, type GenerateStep, type RunResponse } from "../api";
+import { api, generate, STATIC, type ExplainResponse, type Feature, type GenerateStep, type RunResponse } from "../api";
 import { Info } from "../components/Info";
-import { EXAMPLES } from "../examples";
+import { EXAMPLES, REPO } from "../examples";
 import { GLOSSARY } from "../glossary";
 import { Skeleton, Stage } from "../components/Skeleton";
 import { useTooltip } from "../components/Tooltip";
@@ -120,11 +120,20 @@ export function TwinView({ prompt, setPrompt }: { prompt: string; setPrompt: (p:
   return (
     <div className="space-y-4">
       {!exp && <HowItWorks />}
+      {STATIC && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-4 py-2.5 text-sm"
+          style={{ background: "color-mix(in srgb, var(--series-1) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--series-1) 35%, transparent)" }}>
+          <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: "var(--series-1)", color: "#fff" }}>Live demo</span>
+          <span className="text-ink2">Real GPT-2 results, precomputed for six prompts (all features and edits) so it runs in your browser. Pick one below.</span>
+          <a className="font-medium text-ink underline underline-offset-2" href={`${REPO}#quickstart`} target="_blank" rel="noreferrer">Run any prompt locally →</a>
+        </div>
+      )}
       <div className="card p-4">
-        <label htmlFor="prompt" className="text-xs font-medium text-ink2">Prompt for GPT-2 small</label>
+        <label htmlFor="prompt" className="text-xs font-medium text-ink2">Prompt for GPT-2 small{STATIC && " (choose an example)"}</label>
         <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
           <textarea id="prompt" rows={2} value={prompt} onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); go(); } }}
+            readOnly={STATIC} aria-readonly={STATIC}
             className="tok min-h-[2.75rem] flex-1 resize-y rounded-lg border bg-transparent px-3 py-2 text-sm text-ink outline-none focus:ring-2"
             style={{ borderColor: "var(--border)" }} maxLength={240} />
           <Button onClick={() => go()} disabled={busy || !prompt.trim()}>{busy ? "Tracing…" : "Trace ↵"}</Button>

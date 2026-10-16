@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "build:static": "tsc -b && cross-env VITE_STATIC=1 vite build --outDir dist-static",
+    "e2e:static": "playwright test -c playwright.static.config.ts"
   },
   "dependencies": {
     "d3": "^7.9.0",
@@ -25,6 +27,7 @@
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.4.1",
+    "cross-env": "^7.0.3",
     "eslint": "^9.25.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",

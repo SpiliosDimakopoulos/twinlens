@@ -27,7 +27,7 @@ from twinlens.circuits.datasets import ioi_batch
 from twinlens.core.gpt2 import GPT2
 from twinlens.fidelity.signals import reliability_signals
 from twinlens.fidelity.trust import TrustModel
-from twinlens.twin.replacement import TWIN_LEVELS, FeatureEdit, Twin
+from twinlens.twin.replacement import FIX_LEVELS, TWIN_LEVELS, FeatureEdit, Twin
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = threading.Lock()
@@ -199,41 +199,50 @@ def explain(req: RunRequest) -> dict:
     }
 
 
+def whatif_payloads(toks: torch.Tensor, edits: list[FeatureEdit]) -> list[dict]:
+    """Batched what-if: every twin level (plus the proposed fixes) and the real model for each
+    edit, with reliability signals and the trust score. Caller holds ``LOCK``."""
+    twin = get_twin()
+    model = twin.model
+    trace = twin.trace(toks)
+    clean = trace.logits[-1]
+    target = int(clean.argmax())
+    lp_clean = clean.log_softmax(-1)
+    effects = twin.feature_effects(trace, target)
+    outs = {mode: twin.run(trace, mode, edits) for mode in (*TWIN_LEVELS, *FIX_LEVELS, "real")}
+    trust = get_trust()
+    payloads = []
+    for i, edit in enumerate(edits):
+        levels = {}
+        for mode, out in outs.items():
+            lp = out[i].log_softmax(-1)
+            levels[mode] = {
+                "top": _topk(model, out[i], 5),
+                "dlogp": float(lp[target] - lp_clean[target]),
+                "kl": float((lp_clean.exp() * (lp_clean - lp)).sum()),
+            }
+        direct = effects[edit.layer][edit.pos, edit.feature].item()
+        signals = reliability_signals(twin, trace, edit, direct)
+        payloads.append({
+            "target": model.tokenizer.token_str(target),
+            "clean": _topk(model, clean, 5),
+            "levels": levels,
+            "signals": signals,
+            "trust": trust.predict(signals) if trust else None,
+            "trust_factors": trust.explain(signals) if trust else [],
+            "label": twin.feature_label(edit.layer, edit.feature),
+        })
+    return payloads
+
+
 @app.post("/api/twin/whatif")
 def whatif(req: WhatIfRequest) -> dict:
     """The twin predicts a feature edit's effect at every level; then the real model runs it."""
-    twin = get_twin()
-    model = twin.model
     toks = _tokens(req.prompt)
     if req.pos >= toks.shape[1]:
         raise HTTPException(400, "pos is out of range")
     with LOCK:
-        trace = twin.trace(toks)
-        edit = FeatureEdit(req.layer, req.pos, req.feature, req.value)
-        clean = trace.logits[-1]
-        target = int(clean.argmax())
-        outs = {mode: twin.run(trace, mode, [edit])[0] for mode in (*TWIN_LEVELS, "real")}
-        direct = twin.feature_effects(trace, target)[req.layer][req.pos, req.feature].item()
-        signals = reliability_signals(twin, trace, edit, direct)
-    lp_clean = clean.log_softmax(-1)
-    result = {}
-    for mode, out in outs.items():
-        lp = out.log_softmax(-1)
-        result[mode] = {
-            "top": _topk(model, out, 5),
-            "dlogp": float(lp[target] - lp_clean[target]),
-            "kl": float((lp_clean.exp() * (lp_clean - lp)).sum()),
-        }
-    trust = get_trust()
-    return {
-        "target": model.tokenizer.token_str(target),
-        "clean": _topk(model, clean, 5),
-        "levels": result,
-        "signals": signals,
-        "trust": trust.predict(signals) if trust else None,
-        "trust_factors": trust.explain(signals) if trust else [],
-        "label": twin.feature_label(req.layer, req.feature),
-    }
+        return whatif_payloads(toks, [FeatureEdit(req.layer, req.pos, req.feature, req.value)])[0]
 
 
 @app.post("/api/patch")

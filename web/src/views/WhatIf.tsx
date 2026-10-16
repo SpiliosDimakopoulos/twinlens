@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type Feature, type WhatIfResponse } from "../api";
+import { api, STATIC, type Feature, type WhatIfResponse } from "../api";
 import { Info } from "../components/Info";
 import { GLOSSARY } from "../glossary";
 import { Skeleton } from "../components/Skeleton";
@@ -14,6 +14,7 @@ const LEVEL_LABEL: Record<string, string> = {
   replacement: "Replacement",
   replacement_ln: "+ live LayerNorm",
   replacement_full: "+ live attention",
+  linear_fulljac: "Graph + Jacobians",
   real: "Real GPT-2",
 };
 
@@ -75,8 +76,11 @@ function LadderEffects({ data }: { data: WhatIfResponse }) {
           const v = data.levels[k].dlogp;
           const w = (Math.abs(v) / max) * 50;
           const isReal = k === "real";
+          const isFix = k === "linear_fulljac";
           return (
-            <div key={k} className={`grid grid-cols-[7.5rem_1fr_3.75rem] items-center gap-2 text-xs ${isReal ? "border-t pt-1.5" : ""}`}
+            <div key={k}>
+            {isFix && <div className="mt-2 mb-1 border-t pt-1.5 text-[11px] font-medium" style={{ borderColor: "var(--gridline)", color: "var(--series-3)" }}>Proposed fix: same linear graph, keeping the LayerNorm and attention derivatives</div>}
+            <div className={`grid grid-cols-[7.5rem_1fr_3.75rem] items-center gap-2 text-xs ${isReal ? "border-t pt-1.5" : ""}`}
               style={isReal ? { borderColor: "var(--gridline)" } : undefined}
               onMouseMove={(e) => show(e, (
                 <div>
@@ -86,12 +90,12 @@ function LadderEffects({ data }: { data: WhatIfResponse }) {
                 </div>
               ))}
               onMouseLeave={hide}>
-              <span className={isReal ? "font-semibold text-ink" : k === "linear" ? "font-medium text-ink" : "text-ink2"}>{LEVEL_LABEL[k]}</span>
+              <span className={isReal || isFix ? "font-semibold text-ink" : k === "linear" ? "font-medium text-ink" : "text-ink2"}>{LEVEL_LABEL[k]}</span>
               <div className="relative h-4">
                 <div className="absolute inset-y-0 left-1/2 w-px" style={{ background: "var(--baseline)" }} />
                 <div className="absolute top-1 h-2 transition-all duration-500" style={{
                   left: v < 0 ? `${50 - w}%` : "50%", width: `${Math.max(w, 0.4)}%`,
-                  background: isReal ? "var(--real)" : `var(${LADDER_VARS[i]})`,
+                  background: isReal ? "var(--real)" : isFix ? "var(--series-3)" : `var(${LADDER_VARS[i]})`,
                   borderRadius: v < 0 ? "4px 0 0 4px" : "0 4px 4px 0",
                 }} />
                 {!isReal && (
@@ -99,6 +103,7 @@ function LadderEffects({ data }: { data: WhatIfResponse }) {
                 )}
               </div>
               <span className="tnum text-right">{v >= 0 ? "+" : ""}{v.toFixed(3)}</span>
+            </div>
             </div>
           );
         })}
@@ -157,9 +162,13 @@ export function WhatIf({ prompt, feature, tokens }: { prompt: string; feature: F
             {label}
           </button>
         ))}
-        <label className="sr-only" htmlFor="mult">Activation multiplier</label>
-        <input id="mult" type="range" min={0} max={3} step={0.25} value={mult}
-          onChange={(e) => setMult(Number(e.target.value))} className="ml-1 w-28 accent-[var(--series-1)]" />
+        {!STATIC && (
+          <>
+            <label className="sr-only" htmlFor="mult">Activation multiplier</label>
+            <input id="mult" type="range" min={0} max={3} step={0.25} value={mult}
+              onChange={(e) => setMult(Number(e.target.value))} className="ml-1 w-28 accent-[var(--series-1)]" />
+          </>
+        )}
         <span className="tnum text-xs text-ink2">{(feature.activation * mult).toFixed(2)} <span className="text-muted">(was {feature.activation.toFixed(2)})</span></span>
       </div>
       <ErrorNote error={error} />
@@ -169,6 +178,11 @@ export function WhatIf({ prompt, feature, tokens }: { prompt: string; feature: F
         <div className={`mt-4 space-y-4 transition-opacity ${busy ? "opacity-60" : ""}`}>
           <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--page)" }}>
             {verdict(res.levels.linear.dlogp, res.levels.real.dlogp, res.target)}
+            {res.levels.linear_fulljac && (
+              <span className="mt-1 block text-ink2">
+                With the proposed fix the graph predicts {res.levels.linear_fulljac.dlogp.toFixed(2)}, off by {Math.abs(res.levels.linear_fulljac.dlogp - res.levels.real.dlogp).toFixed(2)} instead of {Math.abs(res.levels.linear.dlogp - res.levels.real.dlogp).toFixed(2)}.
+              </span>
+            )}
           </p>
           <LadderEffects data={res} />
           <TrustMeter data={res} />
