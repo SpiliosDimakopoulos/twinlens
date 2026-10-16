@@ -6,7 +6,8 @@ Each entry: the decision, the evidence behind it, and what it rules out.
 **Context.** Target machine: CPU-only laptop (Ryzen 7 5700U, 16 GB RAM), with only ~2.5 GB of
 free commit memory while other applications are running.
 **Evidence.**
-- `import transformer_lens` alone commits **1.39 GB** (it pulls in transformers, datasets, etc.).
+- After `import torch, transformer_lens` the process has **1.39 GB** private memory (0.69 GB of it
+  is torch); TransformerLens pulls in transformers, datasets, etc.
 - `HookedTransformer.from_pretrained("gpt2")` failed with `DefaultCPUAllocator: not enough memory`
   at ~1 GB RSS, because it keeps the HF model, the converted state dict and folded copies
   alive at the same time.
