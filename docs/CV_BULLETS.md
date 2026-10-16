@@ -59,7 +59,7 @@ intervention effects inside GPT-2 and scores how far each explanation can be tru
 > with memory-mapped weights. The tool first reproduces known circuits (induction heads, IOI,
 > ROME) before measuring anything new.
 >
-> Report + code: [link]
+> Report + code: https://github.com/SpiliosDimakopoulos/twinlens
 
 ## 60-second interview pitch
 
