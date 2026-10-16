@@ -15,8 +15,9 @@ export default {
         accent: "var(--series-1)",
       },
       fontFamily: {
-        sans: ["system-ui", "-apple-system", "Segoe UI", "sans-serif"],
-        mono: ["ui-monospace", "Cascadia Code", "Consolas", "monospace"],
+        sans: ["IBM Plex Sans", "system-ui", "sans-serif"],
+        serif: ["Newsreader Variable", "Georgia", "serif"],
+        mono: ["IBM Plex Mono", "ui-monospace", "monospace"],
       },
     },
   },

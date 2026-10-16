@@ -1,52 +1,66 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
-/* Design tokens. Light is the base; dark is its own set of steps (not an inversion). */
+@import "@fontsource-variable/newsreader/opsz.css";
+@import "@fontsource-variable/newsreader/opsz-italic.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-sans/400-italic.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+/*
+ * Design tokens. The page is warm paper; charts sit on lighter "figure plates" whose colour is
+ * the surface the data palettes were validated against (light #fcfcfb, dark #1a1a19).
+ * Dark is its own set of steps, not an inversion.
+ */
 :root {
   color-scheme: light;
-  --page: #f9f9f7;
+  --page: #f3f1eb;
   --surface-1: #fcfcfb;
   --surface-2: #ffffff;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
-  --gridline: #e1e0d9;
-  --baseline: #c3c2b7;
-  --border: rgba(11, 11, 11, 0.1);
+  --text-primary: #141311;
+  --text-secondary: #4f4c45;
+  --text-muted: #85817a;
+  --gridline: #e6e3db;
+  --baseline: #c6c1b5;
+  --rule: #d9d5ca;
+  --border: rgba(20, 19, 17, 0.11);
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-3: #1baf7a;
-  /* diverging blue <-> red with gray midpoint */
   --div-neg: #e34948;
   --div-mid: #f0efec;
   --div-pos: #2a78d6;
-  /* sequential blue */
   --seq-0: #f0efec;
   --seq-1: #104281;
-  /* ordinal ladder (validated, --ordinal) */
   --lv-1: #86b6ef;
   --lv-2: #5598e7;
   --lv-3: #2a78d6;
   --lv-4: #1c5cab;
   --lv-5: #104281;
-  --real: #0b0b0b;
+  --fix: #138a5f;
+  --real: #141311;
   --good: #0ca30c;
   --warning: #fab219;
   --critical: #d03b3b;
+  --mark: rgba(250, 178, 25, 0.28);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --page: #0d0d0d;
+    --page: #0f0f0e;
     --surface-1: #1a1a19;
-    --surface-2: #222220;
-    --text-primary: #f0efec;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
-    --gridline: #2c2c2a;
-    --baseline: #383835;
-    --border: rgba(255, 255, 255, 0.1);
+    --surface-2: #232321;
+    --text-primary: #eeebe4;
+    --text-secondary: #c2bfb4;
+    --text-muted: #8b877f;
+    --gridline: #2b2b29;
+    --baseline: #3d3d3a;
+    --rule: #2f2f2c;
+    --border: rgba(255, 255, 255, 0.09);
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-3: #199e70;
@@ -60,21 +74,24 @@
     --lv-3: #3987e5;
     --lv-4: #256abf;
     --lv-5: #184f95;
-    --real: #f0efec;
+    --fix: #2bc48c;
+    --real: #eeebe4;
+    --mark: rgba(250, 178, 25, 0.22);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #0d0d0d;
+  --page: #0f0f0e;
   --surface-1: #1a1a19;
-  --surface-2: #222220;
-  --text-primary: #f0efec;
-  --text-secondary: #c3c2b7;
-  --text-muted: #898781;
-  --gridline: #2c2c2a;
-  --baseline: #383835;
-  --border: rgba(255, 255, 255, 0.1);
+  --surface-2: #232321;
+  --text-primary: #eeebe4;
+  --text-secondary: #c2bfb4;
+  --text-muted: #8b877f;
+  --gridline: #2b2b29;
+  --baseline: #3d3d3a;
+  --rule: #2f2f2c;
+  --border: rgba(255, 255, 255, 0.09);
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
@@ -88,7 +105,9 @@
   --lv-3: #3987e5;
   --lv-4: #256abf;
   --lv-5: #184f95;
-  --real: #f0efec;
+  --fix: #2bc48c;
+  --real: #eeebe4;
+  --mark: rgba(250, 178, 25, 0.22);
 }
 
 html,
@@ -98,23 +117,82 @@ body {
 }
 
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-.card {
+::selection {
+  background: var(--mark);
+}
+
+@layer components {
+  /* Editorial type */
+  .display {
+    font-family: "Newsreader Variable", Georgia, serif;
+    font-optical-sizing: auto;
+    font-weight: 450;
+    letter-spacing: -0.015em;
+    line-height: 1.08;
+  }
+  .serif {
+    font-family: "Newsreader Variable", Georgia, serif;
+    font-optical-sizing: auto;
+  }
+  .kicker {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .figlabel {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+  .mark {
+    background: linear-gradient(transparent 58%, var(--mark) 58%);
+    padding: 0 0.08em;
+  }
+  
+  /* Figure plate */
+  .plate {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  
+  .rule {
+    border-color: var(--rule);
+  }
+  
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  
+  .tok {
+    white-space: pre;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+  }
+}
+
+kbd {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  padding: 0 4px;
+  border: 1px solid var(--baseline);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  color: var(--text-secondary);
   background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: 12px;
 }
 
-.tnum {
-  font-variant-numeric: tabular-nums;
-}
-
-.tok {
-  white-space: pre;
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+a {
+  text-underline-offset: 3px;
 }
 
 :focus-visible {

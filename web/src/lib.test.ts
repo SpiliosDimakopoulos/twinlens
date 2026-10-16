@@ -26,9 +26,9 @@ describe("trustBand", () => {
 
 describe("verdict", () => {
   it("calls out overstatement, sign flips and agreement", () => {
-    expect(verdict(-2.03, -0.1, " basketball")).toMatch(/overstates the effect 20×/);
-    expect(verdict(0.5, -0.4, " x")).toMatch(/other way/);
-    expect(verdict(-0.5, -0.45, " x")).toMatch(/about right/);
-    expect(verdict(0.001, 0.002, " x")).toMatch(/Neither/);
+    expect(verdict(-2.03, -0.1)).toBe("The graph predicts −2.03. GPT-2 moves −0.10: overstated 20×.");
+    expect(verdict(0.5, -0.4)).toMatch(/opposite direction/);
+    expect(verdict(-0.5, -0.45)).toMatch(/about right/);
+    expect(verdict(0.001, 0.002)).toMatch(/Neither/);
   });
 });

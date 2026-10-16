@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 const NAMES = [
   "--surface-1", "--text-primary", "--text-secondary", "--text-muted", "--gridline", "--baseline",
   "--series-1", "--series-2", "--series-3", "--div-neg", "--div-mid", "--div-pos", "--seq-0",
-  "--seq-1", "--lv-1", "--lv-2", "--lv-3", "--lv-4", "--lv-5", "--real", "--good", "--warning",
+  "--seq-1", "--lv-1", "--lv-2", "--lv-3", "--lv-4", "--lv-5", "--fix", "--real", "--good", "--warning",
   "--critical",
 ] as const;
 export type Tokens = Record<(typeof NAMES)[number], string>;

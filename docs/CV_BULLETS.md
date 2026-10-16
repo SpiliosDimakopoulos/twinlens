@@ -14,7 +14,7 @@ Live demo: spiliosdimakopoulos.github.io/twinlens · Code: github.com/SpiliosDim
   effects poorly (Spearman ρ = 0.20), and the error traces to two derivatives they drop
   (LayerNorm scale, attention pattern).
 - Proposed and validated a fix that keeps graphs linear: restoring both Jacobians raises ρ from
-  0.20 to 0.53 (matching the nonlinear model), cuts catastrophic misses from 2.2% to 0.0%, and
+  0.20 to 0.53 (matching the nonlinear model), cuts catastrophic misses from 2.2% to 0.05%, and
   lifts IOI from 0.01 to 0.59.
 - Designed a trust model that predicts, before running the real model, whether an explanation
   will hold: AUROC 0.93 on held-out prompts and on held-out task families.
@@ -38,7 +38,7 @@ Live demo: spiliosdimakopoulos.github.io/twinlens · Κώδικας: github.com/
   παραγώγους που πετάνε (LayerNorm και attention pattern).
 - Πρότεινα και επαλήθευσα διόρθωση που κρατά τα graphs γραμμικά: με τις δύο Jacobians το ρ
   ανεβαίνει από 0,20 σε 0,53 (όσο και το μη γραμμικό μοντέλο), οι καταστροφικές αστοχίες
-  πέφτουν από 2,2% σε 0,0%, και στο IOI από 0,01 σε 0,59.
+  πέφτουν από 2,2% σε 0,05%, και στο IOI από 0,01 σε 0,59.
 - Σχεδίασα trust model που προβλέπει, πριν τρέξει το πραγματικό μοντέλο, αν μια εξήγηση θα
   ισχύσει: AUROC 0,93 σε prompts και σε κατηγορίες εργασιών που δεν είχε δει.
 - Υλοποίησα από το μηδέν GPT-2 με hooks και memory-mapped βάρη (<1 GB RAM σε CPU laptop). Αναπαράγει
@@ -57,7 +57,7 @@ Live demo: spiliosdimakopoulos.github.io/twinlens · Κώδικας: github.com/
 > - The linear twin that attribution graphs describe ranks real effects poorly (ρ = 0.20).
 > - The error comes from two derivatives the graph drops (LayerNorm and attention). Put them
 >   back and the graph stays linear but becomes as faithful as the full nonlinear model:
->   ρ 0.20 → 0.53, catastrophic misses 2.2% → 0.0%.
+>   ρ 0.20 → 0.53, catastrophic misses 2.2% → 0.05%.
 > - A small trust model can predict *in advance*, from the clean run alone, when an
 >   explanation will hold (AUROC 0.93 on held-out prompts).
 >

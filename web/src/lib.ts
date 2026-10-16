@@ -32,15 +32,20 @@ export const SIGNAL_LABELS: Record<string, string> = {
   clean_top1_prob: "model confidence",
 };
 
+/** Signed value with a true minus sign: two decimals, three below 0.1. */
+export function signed(v: number): string {
+  const a = Math.abs(v);
+  return `${v < 0 ? "−" : "+"}${a < 0.1 ? a.toFixed(3) : a.toFixed(2)}`;
+}
+
 /** One plain-language sentence comparing the graph's prediction with what GPT-2 did. */
-export function verdict(graph: number, real: number, target: string): string {
-  const t = `“${tokenText(target)}”`;
-  const fmt = (v: number) => `${v < 0 ? "lowers" : "raises"} log p(${t}) by ${Math.abs(v).toFixed(2)}`;
-  if (Math.abs(real) < 0.01 && Math.abs(graph) < 0.01) return `Neither the graph nor GPT-2 sees any real effect on ${t}.`;
+export function verdict(graph: number, real: number): string {
+  if (Math.abs(real) < 0.01 && Math.abs(graph) < 0.01) return "Neither the graph nor GPT-2 sees a real effect.";
+  const head = `The graph predicts ${signed(graph)}. GPT-2 moves ${signed(real)}`;
   const sameSign = Math.sign(graph) === Math.sign(real) || Math.abs(real) < 0.01;
   const ratio = Math.abs(graph) / Math.max(Math.abs(real), 1e-3);
-  if (!sameSign) return `The graph says the edit ${fmt(graph)}, but GPT-2 moves the other way: it ${fmt(real)}.`;
-  if (ratio > 2) return `The graph says the edit ${fmt(graph)}; GPT-2 only ${fmt(real)}. The graph overstates the effect ${ratio.toFixed(ratio > 10 ? 0 : 1)}×.`;
-  if (ratio < 0.5) return `The graph says the edit ${fmt(graph)}; GPT-2 ${fmt(real)}. The graph understates the effect.`;
-  return `The graph says the edit ${fmt(graph)}; GPT-2 ${fmt(real)}. The graph gets it about right.`;
+  if (!sameSign) return `${head}: the opposite direction.`;
+  if (ratio > 2) return `${head}: overstated ${ratio.toFixed(ratio > 10 ? 0 : 1)}×.`;
+  if (ratio < 0.5) return `${head}: understated.`;
+  return `${head}: about right.`;
 }

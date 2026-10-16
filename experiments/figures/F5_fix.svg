@@ -3099,30 +3099,33 @@ L 968.194164 231.694999
     </g>
    </g>
    <g id="text_61">
-    <!-- 0.2% -->
-    <g style="fill: #52514e" transform="translate(852.793169 227.580864) scale(0.085 -0.085)">
+    <!-- 0.24% -->
+    <g style="fill: #52514e" transform="translate(850.502154 227.580864) scale(0.085 -0.085)">
      <use xlink:href="#SegoeUI-13"/>
      <use xlink:href="#SegoeUI-11" transform="translate(53.90625 0)"/>
      <use xlink:href="#SegoeUI-15" transform="translate(75.59375 0)"/>
-     <use xlink:href="#SegoeUI-8" transform="translate(129.5 0)"/>
+     <use xlink:href="#SegoeUI-17" transform="translate(129.5 0)"/>
+     <use xlink:href="#SegoeUI-8" transform="translate(183.40625 0)"/>
     </g>
    </g>
    <g id="text_62">
-    <!-- 0.0% -->
-    <g style="fill: #52514e" transform="translate(906.002612 243.994865) scale(0.085 -0.085)">
+    <!-- 0.05% -->
+    <g style="fill: #52514e" transform="translate(903.711596 243.994865) scale(0.085 -0.085)">
      <use xlink:href="#SegoeUI-13"/>
      <use xlink:href="#SegoeUI-11" transform="translate(53.90625 0)"/>
      <use xlink:href="#SegoeUI-13" transform="translate(75.59375 0)"/>
-     <use xlink:href="#SegoeUI-8" transform="translate(129.5 0)"/>
+     <use xlink:href="#SegoeUI-18" transform="translate(129.5 0)"/>
+     <use xlink:href="#SegoeUI-8" transform="translate(183.40625 0)"/>
     </g>
    </g>
    <g id="text_63">
-    <!-- 0.2% -->
-    <g style="fill: #52514e" transform="translate(959.212054 229.906181) scale(0.085 -0.085)">
+    <!-- 0.21% -->
+    <g style="fill: #52514e" transform="translate(956.921039 229.906181) scale(0.085 -0.085)">
      <use xlink:href="#SegoeUI-13"/>
      <use xlink:href="#SegoeUI-11" transform="translate(53.90625 0)"/>
      <use xlink:href="#SegoeUI-15" transform="translate(75.59375 0)"/>
-     <use xlink:href="#SegoeUI-8" transform="translate(129.5 0)"/>
+     <use xlink:href="#SegoeUI-14" transform="translate(129.5 0)"/>
+     <use xlink:href="#SegoeUI-8" transform="translate(183.40625 0)"/>
     </g>
    </g>
    <g id="text_64">

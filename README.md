@@ -17,13 +17,15 @@ reasoning graph and:
 2. the real model **answers**;
 3. a trust score, computed *before* the real model runs, tells you whether to believe the graph.
 
+[![TwinLens landing page: the finding and its three numbers](docs/screenshots/landing.png)](https://spiliosdimakopoulos.github.io/twinlens/)
+
 ![IOI: the attribution graph predicts the edit lowers log p(Mary) by 8.1; GPT-2 actually raises it by 0.23; the fixed graph predicts +0.32](docs/screenshots/hero.png)
 
 *In the IOI prompt above, the standard attribution graph predicts that this feature edit
 **lowers** the answer by 8.1 nats. GPT-2 actually **raises** it by 0.23. The same linear graph
 with the two derivatives restored predicts +0.32.*
 
-<details><summary>▶ 20-second tour (GIF)</summary>
+<details><summary>▶ 25-second tour (GIF)</summary>
 
 ![Tour of the live demo](docs/demo.gif)
 
@@ -36,7 +38,7 @@ From 8,064 interventions on GPT-2 small; full write-up in [`paper/REPORT.md`](pa
 |---|---|
 | **Attribution graphs are weak counterfactual predictors** | the graph twin's rank correlation with the real effect is ρ = **0.20**; on edits that measurably move the output it is within tolerance only **54%** of the time (IOI: ρ = 0.01) |
 | **The cause is two dropped derivatives** | frozen LayerNorm causes **88%** of the error and nearly all catastrophic misses; frozen attention causes the ranking errors |
-| **The fix keeps the graph linear** | restoring the LayerNorm and attention-pattern Jacobians gives a still-linear graph that matches the nonlinear twin: ρ **0.20 → 0.53**, sign agreement **67% → 86%**, catastrophic misses **2.2% → 0.0%**, IOI **0.01 → 0.59** |
+| **The fix keeps the graph linear** | restoring the LayerNorm and attention-pattern Jacobians gives a still-linear graph that matches the nonlinear twin: ρ **0.20 → 0.53**, sign agreement **67% → 86%**, catastrophic misses **2.2% → 0.05%**, IOI **0.01 → 0.59** |
 | **The twin knows when it is wrong** | a trust model predicts, from the clean run alone, when a graph prediction will fail: AUROC **0.93** on held-out prompts *and* on held-out task families; on the edges users inspect it lifts graph accuracy from 54% to 71% |
 
 <p>
@@ -83,9 +85,17 @@ Each step unfreezes one component, so every error is attributed to its source.
   <img src="docs/screenshots/mobile.png" width="22%" alt="Phone layout">
 </p>
 
+**Design.** Editorial rather than dashboard:
+- Newsreader + IBM Plex type, paper and ink, and numbered figure plates.
+- A signature *gap plot* that puts every twin's prediction on one axis against GPT-2's answer.
+- Written readings generated from the data, e.g. "the graph predicts −8.12, GPT-2 moves +0.23:
+  the opposite direction".
+
 **UX details.**
 - A prompt is traced as soon as the page opens, and the strongest feature is already simulated,
   so there is no empty first screen.
+- Every view is a shareable link (`?p=2&f=0-3-5545&m=2`). Keyboard: <kbd>←</kbd>/<kbd>→</kbd>
+  step through features and <kbd>[</kbd>/<kbd>]</kbd> change specimen.
 - Each what-if comes with a plain-language verdict ("the graph overstates the effect 21×") and
   the three signals that drove its trust score.
 - Hovering a node isolates it in the graph, and every node can be reached with the keyboard.

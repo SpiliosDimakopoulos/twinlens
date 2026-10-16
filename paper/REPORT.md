@@ -30,7 +30,7 @@ Four findings:
    linear twin matches the fully nonlinear replacement model on every metric:
    - ρ 0.20 → **0.53** [0.49, 0.56] (nonlinear twin: 0.52);
    - sign agreement 67% → **86%**;
-   - catastrophic misses 2.2% → **0.0%**;
+   - catastrophic misses 2.2% → **0.05%** (4 of 8,064 edits);
    - IOI ρ 0.01 → **0.59**.
 
    The attribution graph's problem is therefore not linearity but the derivatives it drops.

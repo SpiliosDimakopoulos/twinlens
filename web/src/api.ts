@@ -73,8 +73,16 @@ export type Summary = {
   trust: {
     cv_auroc: number; base_rate: number; cv_auroc_big: number; base_rate_big: number;
     ok_rate_trusted_half: number; ok_rate_flagged_half: number; single_signal_auroc: Record<string, number>;
+    transfer_lofo?: Record<string, number>;
+    payoff?: Record<string, { ok_all: number; ok_trusted: number; ok_flagged: number; kept_share: number; n: number }>;
   };
   real_effect: { median_abs_dlogp: number; frac_big: number; frac_flip: number };
+  fix?: {
+    levels: string[];
+    ladder: Record<string, Record<string, Ci>>;
+    by_category_spearman: Record<string, Record<string, number>>;
+    top_edges_catastrophic: Record<string, number>;
+  };
 };
 
 async function post<T>(path: string, body: unknown): Promise<T> {

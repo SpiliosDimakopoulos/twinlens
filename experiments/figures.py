@@ -301,7 +301,7 @@ def fix_figure(summary: dict, out: Path) -> None:
             )
         ax.errorbar(x, pts, yerr=err, fmt="none", ecolor=INK2, elinewidth=1, capsize=3, zorder=3)
         for xi, p, v in zip(x, pts, vals, strict=True):
-            txt = (f"{p:.1%}" if p < 0.1 else f"{p:.0%}") if pct else f"{p:.2f}"
+            txt = (f"{p:.2%}" if p < 0.01 else f"{p:.1%}" if p < 0.1 else f"{p:.0%}") if pct else f"{p:.2f}"
             ax.text(xi, v[2], txt, ha="center", va="bottom", fontsize=8.5, color=INK2)
         ax.set_title(title, fontsize=10)
         ax.set_xticks(x, [labels[lv] for lv in levels], fontsize=7.5)

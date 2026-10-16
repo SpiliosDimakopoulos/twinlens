@@ -1,37 +1,77 @@
-import { useEffect, useRef, useState } from "react";
-import { api, generate, STATIC, type ExplainResponse, type Feature, type GenerateStep, type RunResponse } from "../api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, generate, STATIC, type ExplainResponse, type Feature, type GenerateStep, type RunResponse, type Summary } from "../api";
+import { Glyph } from "../components/Glyph";
 import { Info } from "../components/Info";
-import { EXAMPLES, REPO } from "../examples";
-import { GLOSSARY } from "../glossary";
 import { Skeleton, Stage } from "../components/Skeleton";
 import { useTooltip } from "../components/Tooltip";
 import { Button, Card, ErrorNote, TokenBars } from "../components/ui";
+import { EXAMPLES, REPO } from "../examples";
+import { GLOSSARY } from "../glossary";
 import { decidedAt, tokenText } from "../lib";
+import { readParam, typing, writeParams } from "../url";
 import { ReasoningGraph } from "./ReasoningGraph";
-import { WhatIf } from "./WhatIf";
-
+import { PRESETS, WhatIf } from "./WhatIf";
 
 const STEPS = ["Run GPT-2", "Encode 12 transcoders", "Attribute every feature"];
+const fkey = (f: Feature) => `${f.layer}-${f.pos}-${f.feature}`;
 
-function HowItWorks() {
-  const items: [string, string][] = [
-    ["Trace", "GPT-2 answers your prompt while the twin, an interpretable copy built from transcoder features, explains the answer as a reasoning path."],
-    ["Click a feature", "The twin predicts what happens if that feature is turned off or up, at five levels of approximation."],
-    ["Check the twin", "The real GPT-2 runs the same edit. A trust score, computed before GPT-2 runs, tells you whether to believe the graph."],
-  ];
+/** The finding, stated up front, with the three numbers that carry it. */
+function Hero({ summary }: { summary: Summary | null }) {
+  const fix = summary?.fix?.ladder;
+  const rho0 = fix?.linear?.spearman?.[0], rho1 = fix?.linear_fulljac?.spearman?.[0];
+  const cat0 = fix?.linear?.catastrophic?.[0], cat1 = fix?.linear_fulljac?.catastrophic?.[0];
+  const auc = summary?.trust.cv_auroc;
   return (
-    <ol className="grid gap-3 sm:grid-cols-3">
-      {items.map(([title, body], i) => (
-        <li key={title} className="card flex gap-3 p-3.5">
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
-            style={{ background: "var(--text-primary)", color: "var(--surface-1)" }}>{i + 1}</span>
-          <div>
-            <div className="text-sm font-semibold text-ink">{title}</div>
-            <p className="mt-0.5 text-xs leading-relaxed text-ink2">{body}</p>
-          </div>
-        </li>
+    <section className="grid gap-8 pb-8 pt-4 lg:grid-cols-[1.35fr_1fr] lg:gap-14">
+      <div>
+        <div className="kicker">Mechanistic interpretability · GPT-2 small · 8,064 interventions</div>
+        <h1 className="display mt-3 text-[38px] text-ink sm:text-[50px]">
+          Attribution graphs fail because of the derivatives they drop, <em className="italic text-ink2">not because they are linear.</em>
+        </h1>
+        <p className="mt-4 max-w-[60ch] text-[16px] leading-relaxed text-ink2">
+          An attribution graph explains a model through an interpretable twin of it. TwinLens runs that
+          twin beside the real GPT-2, asks both what happens when a feature is switched off, and measures
+          the gap. Here the gap is often large. Put two first-order terms back (LayerNorm's scale and
+          the attention pattern) and the graph stays linear but stops getting answers backwards.
+        </p>
+      </div>
+      <div className="grid content-end gap-5 sm:grid-cols-3 lg:grid-cols-1">
+        <HeroStat value={rho0 !== undefined && rho1 !== undefined ? `${rho0.toFixed(2)} → ${rho1.toFixed(2)}` : "—"}
+          label="Rank agreement with GPT-2" note="Spearman ρ of predicted vs real effect, graph today → graph + Jacobians" />
+        <HeroStat value={cat0 !== undefined && cat1 !== undefined ? `${pct(cat0)} → ${pct(cat1)}` : "—"}
+          label="Catastrophic misses" note="Predictions off by more than one nat" />
+        <HeroStat value={auc !== undefined ? auc.toFixed(2) : "—"}
+          label="Knows when it's wrong" note="AUROC of the trust score on unseen prompts" />
+      </div>
+    </section>
+  );
+}
+
+const pct = (v: number) => `${(v * 100).toFixed(v < 0.01 ? 2 : 1)}%`;
+
+function HeroStat({ value, label, note }: { value: string; label: string; note: string }) {
+  return (
+    <div className="border-t pt-2.5 rule">
+      <div className="kicker">{label}</div>
+      <div className="serif mt-1 text-[30px] leading-none tracking-tight text-ink tnum">{value}</div>
+      <div className="mt-1 text-[12px] leading-snug text-muted">{note}</div>
+    </div>
+  );
+}
+
+/** Example prompts presented as a specimen list: the task family over the prompt itself. */
+function Specimens({ active, onPick, disabled }: { active: number; onPick: (i: number) => void; disabled: boolean }) {
+  return (
+    <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Example prompts">
+      {EXAMPLES.map(([text, kind], i) => (
+        <button key={text} role="tab" aria-selected={i === active} disabled={disabled} onClick={() => onPick(i)}
+          className="group min-w-[150px] max-w-[220px] shrink-0 rounded-[5px] px-3 py-2 text-left transition-colors disabled:opacity-60 lg:min-w-0 lg:max-w-none lg:flex-1"
+          style={i === active ? { background: "var(--surface-1)", boxShadow: "inset 0 0 0 1px var(--baseline), inset 0 -2px 0 var(--text-primary)" } : {}}>
+          <div className="kicker truncate" style={i === active ? { color: "var(--text-primary)" } : {}}>{String(i + 1).padStart(2, "0")} · {kind}</div>
+          <div className="tok mt-1 truncate text-[12px] text-ink2 group-hover:text-ink">{tokenText(text)}</div>
+        </button>
       ))}
-    </ol>
+    </div>
   );
 }
 
@@ -46,20 +86,22 @@ function Generation({ prompt }: { prompt: string }) {
     stop.current = generate(prompt, (s) => setSteps((p) => [...p, s]), () => setBusy(false), 16);
   };
   return (
-    <Card title="Live generation"
+    <Card label="Fig. 5" title="Live generation"
       subtitle="GPT-2 continues the prompt. Each token is shaded by the layer at which the logit lens settles on it: darker means decided later."
-      right={busy ? <Button kind="ghost" onClick={() => stop.current()}>Stop</Button> : <Button kind="ghost" onClick={start}>Generate ▸</Button>}>
-      <div className="flex flex-wrap items-end gap-1 font-mono text-sm leading-7">
-        <span className="tok text-ink2">{prompt}</span>
+      right={busy
+        ? <Button kind="ghost" onClick={() => stop.current()}><Glyph name="stop" size={10} />Stop</Button>
+        : <Button kind="ghost" onClick={start}><Glyph name="play" size={10} />Generate</Button>}>
+      <div className="flex flex-wrap items-end gap-[3px] text-[13.5px] leading-7">
+        <span className="tok whitespace-pre-wrap break-words text-muted">{prompt}</span>
         {steps.map((s, i) => {
           const l = decidedAt(s);
-          const shade = `color-mix(in srgb, var(--series-1) ${15 + (l / 12) * 70}%, transparent)`;
+          const shade = `color-mix(in srgb, var(--series-1) ${12 + (l / 12) * 68}%, transparent)`;
           return (
-            <span key={i} className="tok rounded px-0.5" style={{ background: shade }}
+            <span key={i} className="tok rounded-[3px] px-[2px]" style={{ background: shade }}
               onMouseMove={(e) => show(e, (
                 <div>
                   <div><b>“{tokenText(s.token)}”</b> settled at layer {l}</div>
-                  <div className="text-ink2">alternatives: {s.top.slice(1, 4).map((t) => `“${tokenText(t.token)}” ${(t.prob * 100).toFixed(0)}%`).join(", ")}</div>
+                  <div className="text-ink2">runners-up: {s.top.slice(1, 4).map((t) => `“${tokenText(t.token)}” ${(t.prob * 100).toFixed(0)}%`).join(", ")}</div>
                 </div>
               ))}
               onMouseLeave={hide}>{s.token}</span>
@@ -74,13 +116,13 @@ function Generation({ prompt }: { prompt: string }) {
 function ErrorStrip({ exp }: { exp: ExplainResponse }) {
   const { show, hide } = useTooltip();
   return (
-    <div className="flex h-40 items-end gap-0.5" role="img" aria-label="Transcoder error fraction per layer">
+    <div className="flex h-28 items-end gap-[3px]" role="img" aria-label="Transcoder error fraction per layer">
       {Object.entries(exp.error_fraction).map(([l, v]) => (
         <div key={l} className="flex flex-1 flex-col items-center gap-1"
           onMouseMove={(e) => show(e, <div><b>Layer {l}</b>: {(v * 100).toFixed(0)}% of the MLP output is unexplained</div>)}
           onMouseLeave={hide}>
-          <div className="w-full rounded-t" style={{ height: `${Math.max(2, Math.min(1, v) * 136)}px`, background: "var(--series-2)" }} />
-          <span className="text-[9px] text-muted tnum">{l}</span>
+          <div className="w-full rounded-t-[3px]" style={{ height: `${Math.max(2, Math.min(1, v) * 86)}px`, background: "var(--series-2)", opacity: 0.6 }} />
+          <span className="text-[9.5px] text-muted tnum">{l}</span>
         </div>
       ))}
     </div>
@@ -91,97 +133,142 @@ export function TwinView({ prompt, setPrompt }: { prompt: string; setPrompt: (p:
   const [run, setRun] = useState<RunResponse | null>(null);
   const [exp, setExp] = useState<ExplainResponse | null>(null);
   const [sel, setSel] = useState<Feature | null>(null);
+  const [mult, setMult] = useState(() => {
+    const m = Number(readParam("m"));
+    return PRESETS.some(([, v]) => v === m) ? m : 0;
+  });
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [ran, setRan] = useState("");
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const wanted = useRef<string | null>(readParam("f"));
+  const graphBox = useRef<HTMLDivElement>(null);
+  const active = EXAMPLES.findIndex(([t]) => t === prompt);
 
-  const go = async (p = prompt) => {
+  useEffect(() => { api.summary().then(setSummary).catch(() => {}); }, []);
+
+  const go = useCallback(async (p: string) => {
     if (!p.trim()) return;
     setBusy(true); setError(null); setStage(0);
     const timers = [setTimeout(() => setStage(1), 500), setTimeout(() => setStage(2), 1400)];
     try {
       const [r, e] = await Promise.all([api.run(p), api.explain(p)]);
       setRun(r); setExp(e); setRan(p);
-      setSel(e.features.find((f) => f.effect > 0) ?? e.features[0] ?? null);  // start with the strongest supporter
+      const fromUrl = e.features.find((f) => fkey(f) === wanted.current);
+      wanted.current = null;
+      setSel(fromUrl ?? e.features.find((f) => f.effect > 0) ?? e.features[0] ?? null);
     } catch (err) { setError(String(err)); }
     finally { timers.forEach(clearTimeout); setBusy(false); }
-  };
+  }, []);
 
-  useEffect(() => { go(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { go(prompt); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // On narrow screens the graph scrolls; start at the right edge, where the prediction is.
-  const graphBox = useRef<HTMLDivElement>(null);
+  // Keep the URL shareable: example (or custom prompt), selected feature, edit strength.
+  useEffect(() => {
+    if (!ran) return;
+    const idx = EXAMPLES.findIndex(([t]) => t === ran);
+    writeParams({ p: idx >= 0 ? idx + 1 : null, q: idx >= 0 ? null : ran, f: sel ? fkey(sel) : null, m: mult || null });
+  }, [ran, sel, mult]);
+
   useEffect(() => {
     const el = graphBox.current;
     if (el) el.scrollLeft = el.scrollWidth;
   }, [exp]);
 
+  const pick = useCallback((i: number) => { setPrompt(EXAMPLES[i][0]); setMult(0); go(EXAMPLES[i][0]); }, [go, setPrompt]);
+
+  // Keyboard: ← → cycle features by strength, [ ] cycle examples.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (typing(e) || e.metaKey || e.ctrlKey || e.altKey || !exp) return;
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        const fs = exp.features;
+        const i = sel ? fs.findIndex((f) => fkey(f) === fkey(sel)) : -1;
+        const next = fs[(i + (e.key === "ArrowRight" ? 1 : -1) + fs.length) % fs.length];
+        if (next) { e.preventDefault(); setSel(next); }
+      } else if (e.key === "]" || e.key === "[") {
+        const base = active >= 0 ? active : 0;
+        pick((base + (e.key === "]" ? 1 : -1) + EXAMPLES.length) % EXAMPLES.length);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [exp, sel, active, pick]);
+
   return (
-    <div className="space-y-4">
-      {!exp && <HowItWorks />}
-      {STATIC && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-4 py-2.5 text-sm"
-          style={{ background: "color-mix(in srgb, var(--series-1) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--series-1) 35%, transparent)" }}>
-          <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: "var(--series-1)", color: "#fff" }}>Live demo</span>
-          <span className="text-ink2">Real GPT-2 results, precomputed for six prompts (all features and edits) so it runs in your browser. Pick one below.</span>
-          <a className="font-medium text-ink underline underline-offset-2" href={`${REPO}#quickstart`} target="_blank" rel="noreferrer">Run any prompt locally →</a>
+    <div>
+      <Hero summary={summary} />
+
+      <section className="border-t pt-5 rule">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div className="kicker">Choose a specimen{STATIC ? "" : " or write your own"}</div>
+          {STATIC && (
+            <a className="text-[12px] text-ink2 underline decoration-[var(--baseline)] hover:text-ink" href={`${REPO}#quickstart`} target="_blank" rel="noreferrer">
+              Static demo with precomputed GPT-2 runs · run locally for any prompt
+            </a>
+          )}
         </div>
-      )}
-      <div className="card p-4">
-        <label htmlFor="prompt" className="text-xs font-medium text-ink2">Prompt for GPT-2 small{STATIC && " (choose an example)"}</label>
-        <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
-          <textarea id="prompt" rows={2} value={prompt} onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); go(); } }}
-            readOnly={STATIC} aria-readonly={STATIC}
-            className="tok min-h-[2.75rem] flex-1 resize-y rounded-lg border bg-transparent px-3 py-2 text-sm text-ink outline-none focus:ring-2"
-            style={{ borderColor: "var(--border)" }} maxLength={240} />
-          <Button onClick={() => go()} disabled={busy || !prompt.trim()}>{busy ? "Tracing…" : "Trace ↵"}</Button>
-        </div>
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted">Try:</span>
-          {EXAMPLES.map(([ex, kind]) => (
-            <button key={ex} onClick={() => { setPrompt(ex); go(ex); }} disabled={busy} title={ex}
-              className="rounded-full border px-2.5 py-0.5 text-xs text-ink2 transition hover:text-ink disabled:opacity-50"
-              style={{ borderColor: "var(--border)" }}>{kind}</button>
-          ))}
-        </div>
-      </div>
-      <ErrorNote error={error} />
+        <div className="mt-2"><Specimens active={active} onPick={pick} disabled={busy} /></div>
+        {!STATIC && (
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <label htmlFor="prompt" className="sr-only">Prompt for GPT-2 small</label>
+            <textarea id="prompt" rows={1} value={prompt} onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); go(prompt); } }}
+              className="tok min-h-[2.5rem] flex-1 resize-y rounded-[5px] bg-[var(--surface-1)] px-3 py-2 text-[13.5px] text-ink outline-none"
+              style={{ boxShadow: "inset 0 0 0 1px var(--baseline)" }} maxLength={240} />
+            <Button onClick={() => go(prompt)} disabled={busy || !prompt.trim()}>{busy ? "Tracing…" : <>Trace <Glyph name="arrow" size={12} /></>}</Button>
+          </div>
+        )}
+      </section>
+
+      <div className="mt-5"><ErrorNote error={error} /></div>
 
       {busy && !exp && (
-        <div className="space-y-3">
+        <div className="mt-5 space-y-3">
           <Stage steps={STEPS} active={stage} />
-          <div className="grid gap-4 lg:grid-cols-[1.55fr_1fr]">
-            <Skeleton className="h-[460px]" />
-            <div className="space-y-3"><Skeleton className="h-40" /><Skeleton className="h-64" /></div>
+          <div className="grid gap-5 lg:grid-cols-[1.45fr_1fr]">
+            <Skeleton className="h-[480px]" />
+            <div className="space-y-3"><Skeleton className="h-24" /><Skeleton className="h-72" /></div>
           </div>
         </div>
       )}
 
       {run && exp && (
-        <div className={`space-y-4 transition-opacity ${busy ? "opacity-50" : ""}`} aria-busy={busy}>
-          {busy && <Stage steps={STEPS} active={stage} />}
-          <div className="grid items-start gap-4 lg:grid-cols-[1.55fr_1fr]">
-            <Card title="Reasoning path"
-              subtitle={<>The features with the largest direct effect<Info>{GLOSSARY.directEffect}</Info> on predicting “<span className="tok">{tokenText(exp.target)}</span>”, by token and layer. Hover to isolate one, click to edit it.</>}>
-              <div ref={graphBox} className="-mx-1 overflow-x-auto px-1"><ReasoningGraph tokens={exp.tokens} target={exp.target} features={exp.features} selected={sel} onSelect={setSel} /></div>
-              <p className="mt-1 text-[11px] text-muted sm:hidden">← scroll for earlier tokens</p>
-            </Card>
-            <div className="min-w-0 space-y-4 lg:sticky lg:top-4">
-              <WhatIf prompt={ran} feature={sel} tokens={exp.tokens} />
+        <div className={`mt-5 space-y-5 transition-opacity ${busy ? "opacity-50" : ""}`} aria-busy={busy}>
+          <div className="grid items-start gap-5 lg:grid-cols-[1.45fr_1fr]">
+            <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+              <Card label="Fig. 1"
+                title={<>The reasoning path behind “<span className="tok">{tokenText(exp.target)}</span>”</>}
+                subtitle={<>The transcoder features with the largest direct effect<Info>{GLOSSARY.directEffect}</Info> on the prediction, by token and layer. Hover to isolate one, click to test it.</>}>
+                <div ref={graphBox} className="-mx-1 overflow-x-auto px-1">
+                  <ReasoningGraph tokens={exp.tokens} target={exp.target} features={exp.features} selected={sel} onSelect={setSel} />
+                </div>
+                <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-muted">
+                  <span><kbd>←</kbd> <kbd>→</kbd> step through features</span>
+                  <span><kbd>[</kbd> <kbd>]</kbd> change specimen</span>
+                  <span className="sm:hidden">scroll the figure for earlier tokens</span>
+                </p>
+              </Card>
+            </div>
+            <div className="min-w-0 self-stretch lg:col-start-2 lg:row-span-2 lg:row-start-1">
+              <div className="lg:sticky lg:top-4">
+                <WhatIf prompt={ran} feature={sel} tokens={exp.tokens} mult={mult} setMult={setMult} />
+              </div>
+            </div>
+            <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+              <Card label="Fig. 3" title="What GPT-2 predicts" subtitle={<>Next-token distribution after “<span className="tok whitespace-pre-wrap">{tokenText(ran).slice(-36)}</span>”</>}>
+                <TokenBars items={run.top} />
+              </Card>
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card title="Prediction" subtitle={<>GPT-2's next-token distribution for “<span className="tok">{tokenText(ran).slice(-40)}</span>”</>}>
-              <TokenBars items={run.top} />
-            </Card>
-            <Card title={<>What the twin cannot explain<Info>{GLOSSARY.error}</Info></>}
+          <div className="grid items-start gap-5 md:grid-cols-[1fr_1.4fr]">
+            <Card label="Fig. 4" title={<>What the twin cannot explain<Info>{GLOSSARY.error}</Info></>}
               subtitle="Share of each layer's MLP output at the last token that the transcoder does not reconstruct">
               <ErrorStrip exp={exp} />
             </Card>
+            <Generation prompt={ran} />
           </div>
-          <Generation prompt={ran} />
         </div>
       )}
     </div>

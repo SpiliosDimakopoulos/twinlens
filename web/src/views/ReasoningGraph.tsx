@@ -24,7 +24,8 @@ export function ReasoningGraph({ tokens, target, features, selected, onSelect }:
   const t = useTokens();
   const { show, hide } = useTooltip();
   const [hover, setHover] = useState<string | null>(null);
-  const colW = Math.max(58, Math.min(88, 780 / tokens.length));
+  // Sized so the figure renders close to 1:1 in its column (text stays legible).
+  const colW = Math.max(40, Math.min(84, 600 / tokens.length));
   const rowH = 30;
   const left = 34;
   const top = 50;
@@ -81,8 +82,9 @@ export function ReasoningGraph({ tokens, target, features, selected, onSelect }:
         const dim = focus !== null && focus !== k;
         const strong = focus === k || (focus === null && selected !== null && KEY(selected) === k);
         return (
-          <line key={`e-${k}`} x1={x} y1={y} x2={out.x} y2={out.y + 12}
-            stroke={color(f.effect)} strokeOpacity={dim ? 0.08 : strong ? 0.9 : 0.35}
+          <path key={`e-${k}`} fill="none"
+            d={`M${x},${y} C${x},${y - (y - out.y) * 0.55} ${out.x},${out.y + 12 + (y - out.y) * 0.35} ${out.x},${out.y + 13}`}
+            stroke={color(f.effect)} strokeOpacity={dim ? 0.07 : strong ? 0.9 : 0.32} strokeLinecap="round"
             strokeWidth={0.75 + 2.5 * (Math.abs(f.effect) / maxAbs) + (strong ? 1 : 0)}
             style={{ transition: "stroke-opacity 150ms" }} />
         );
@@ -124,12 +126,12 @@ export function ReasoningGraph({ tokens, target, features, selected, onSelect }:
           {tokenText(tok).slice(0, 10)}
         </text>
       ))}
-      <g transform={`translate(${left}, ${H - 10})`} fontSize={10} fill="var(--text-secondary)">
-        <circle cx={5} cy={-3} r={5} fill={color(maxAbs)} />
-        <text x={14} y={0}>pushes the prediction up</text>
-        <circle cx={170} cy={-3} r={5} fill={color(-maxAbs)} />
-        <text x={179} y={0}>pushes it down</text>
-        <text x={300} y={0} fill="var(--text-muted)">size = |direct effect| · shaded column = predicting position</text>
+      <g transform={`translate(${left}, ${H - 10})`} fontSize={10.5} fill="var(--text-secondary)">
+        <circle cx={4} cy={-3.5} r={4} fill={color(maxAbs)} />
+        <text x={12} y={0}>supports the prediction</text>
+        <circle cx={150} cy={-3.5} r={4} fill={color(-maxAbs)} />
+        <text x={158} y={0}>works against it</text>
+        <text x={270} y={0} fill="var(--text-muted)">area ∝ |direct effect|</text>
       </g>
     </svg>
   );

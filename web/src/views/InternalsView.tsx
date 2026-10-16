@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, type InterveneResponse, type RunResponse } from "../api";
+import { api, STATIC, type InterveneResponse, type RunResponse } from "../api";
 import { Heatmap } from "../components/Heatmap";
+import { LensReading } from "./LensReading";
 import { diverging, sequential, useTokens } from "../components/theme";
 import { Button, Card, ErrorNote, TokenBars } from "../components/ui";
 import { tokenText } from "../lib";
@@ -44,16 +45,26 @@ export function InternalsView({ prompt }: { prompt: string }) {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 text-sm text-ink2">
-        <span>Prompt: <span className="tok text-ink">{tokenText(prompt)}</span></span>
-        <Button kind="ghost" onClick={go} disabled={busy}>{busy ? "Running…" : "Refresh"}</Button>
-      </div>
+    <div className="space-y-5">
+      <header className="grid gap-4 pb-3 pt-4 lg:grid-cols-[1.3fr_1fr] lg:gap-14">
+        <div>
+          <div className="kicker">Internals · the real GPT-2, no twin</div>
+          <h1 className="display mt-3 text-[36px] text-ink sm:text-[42px]">Inside the forward pass</h1>
+        </div>
+        <div className="self-end text-[14.5px] leading-relaxed text-ink2">
+          <p>How the answer forms layer by layer, which heads write it, and what they look at.</p>
+          <p className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="kicker">Specimen</span><span className="tok text-ink">{tokenText(prompt)}</span>
+            {!STATIC && <Button kind="ghost" onClick={go} disabled={busy}>{busy ? "Running…" : "Refresh"}</Button>}
+          </p>
+        </div>
+      </header>
       <ErrorNote error={error} />
       {run && headGrid && (
         <>
-          <Card title="Logit lens"
+          <Card label="Fig. 13" title="Logit lens"
             subtitle={<>The residual stream decoded after each layer. Text = top guess; shade = probability of the model's final answer at that position.</>}>
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
             <div className="overflow-x-auto">
               <Heatmap ariaLabel="Logit lens" rows={13} cols={run.tokens.length} cell={46} labelWidth={46}
                 rowLabel={(r) => (r === 12 ? "emb" : `L${11 - r}`)}
@@ -68,10 +79,12 @@ export function InternalsView({ prompt }: { prompt: string }) {
                   </div>
                 )} />
             </div>
+            <LensReading run={run} />
+            </div>
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="Which heads write the answer"
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card label="Fig. 14" title="Which heads write the answer"
               subtitle={<>Direct logit attribution per head for “<span className="tok">{tokenText(run.target.token)}</span>”. Click a head to ablate it.</>}>
               <Heatmap ariaLabel="Direct logit attribution per attention head" rows={12} cols={12} cell={24} labelWidth={30}
                 rowLabel={(r) => `L${r}`} colLabel={(c) => `H${c}`}
@@ -86,7 +99,7 @@ export function InternalsView({ prompt }: { prompt: string }) {
                 </div>
               )}
             </Card>
-            <Card title="Attention pattern" subtitle="Who attends to whom (row = query token, column = key token)"
+            <Card label="Fig. 15" title="Attention pattern" subtitle="Who attends to whom (row = query token, column = key token)"
               right={
                 <div className="flex gap-2 text-xs">
                   <label>Layer <select value={layer} onChange={(e) => setLayer(+e.target.value)} className="rounded border bg-transparent px-1" style={{ borderColor: "var(--border)" }}>

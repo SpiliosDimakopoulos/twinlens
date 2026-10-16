@@ -17,14 +17,20 @@ export function CaseStudiesView() {
     api.caseStudy("ioi").then(setIoi).catch((e) => setError(String(e)));
   }, []);
   return (
-    <div className="space-y-4">
-      <p className="max-w-3xl text-sm text-ink2">
-        Before trusting any new measurement, the tool has to reproduce published ones. These are computed live from
-        TwinLens' own GPT-2 implementation and also pinned in the test suite. Outlined cells are the heads named in the papers.
-      </p>
+    <div className="space-y-5">
+      <header className="grid gap-4 pb-3 pt-4 lg:grid-cols-[1.3fr_1fr] lg:gap-14">
+        <div>
+          <div className="kicker">Reproductions · calibrating the instrument</div>
+          <h1 className="display mt-3 text-[36px] text-ink sm:text-[42px]">Published circuits, recomputed</h1>
+        </div>
+        <p className="self-end text-[14.5px] leading-relaxed text-ink2">
+          A measuring instrument is only as good as its calibration. Before measuring anything new, TwinLens must
+          reproduce known GPT-2 results from its own implementation; each is also pinned as a test. Outlined cells are the heads the papers name.
+        </p>
+      </header>
       <ErrorNote error={error} />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Induction heads" subtitle="Olsson et al. (2022). Attention to the token after the previous occurrence, on repeated random tokens.">
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card label="Fig. 16" title="Induction heads" subtitle="Olsson et al. (2022). Attention to the token after the previous occurrence, on repeated random tokens.">
           {ind ? (
             <Heatmap ariaLabel="Induction score per head" rows={12} cols={12} cell={24} labelWidth={30}
               rowLabel={(r) => `L${r}`} colLabel={(c) => `H${c}`}
@@ -33,7 +39,7 @@ export function CaseStudiesView() {
               tooltip={(r, c) => <div><b>L{r}H{c}</b>: induction score {ind.grid[r][c].toFixed(2)}{has(ind.known, r, c) && <div>✓ reported induction head</div>}</div>} />
           ) : <p className="text-sm text-muted">Computing…</p>}
         </Card>
-        <Card title="Indirect object identification"
+        <Card label="Fig. 17" title="Indirect object identification"
           subtitle={<>Wang et al. (2022). Direct logit attribution to IO − S. Name movers push the right name up (blue); negative name movers push it down (red).{ioi?.logit_diff !== undefined && <> Mean logit diff {ioi.logit_diff.toFixed(2)}.</>}</>}>
           {ioi ? (
             <>
