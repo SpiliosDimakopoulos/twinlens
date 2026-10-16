@@ -6,7 +6,6 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-10-16T17:35:22.957973</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -35,7 +34,7 @@ L 399.989754 122.020344
 L 399.989754 26.260344 
 L 7.2 26.260344 
 z
-" clip-path="url(#pf053ad4131)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p04d40e2ece)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_3">
     <path d="M 399.989754 122.020344 
@@ -43,7 +42,7 @@ L 406.675076 122.020344
 L 406.675076 26.260344 
 L 399.989754 26.260344 
 z
-" clip-path="url(#pf053ad4131)" style="fill: #eb6834; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p04d40e2ece)" style="fill: #eb6834; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_4">
     <path d="M 406.675076 122.020344 
@@ -51,7 +50,7 @@ L 453.6 122.020344
 L 453.6 26.260344 
 L 406.675076 26.260344 
 z
-" clip-path="url(#pf053ad4131)" style="fill: #1baf7a; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p04d40e2ece)" style="fill: #1baf7a; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="text_1">
     <!-- Where the replacement twin's error comes from (share of clipped mean error) -->
@@ -1209,7 +1208,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="pf053ad4131">
+  <clipPath id="p04d40e2ece">
    <rect x="7.2" y="21.472344" width="446.4" height="105.336"/>
   </clipPath>
  </defs>

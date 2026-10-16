@@ -48,14 +48,15 @@ plt.rcParams.update(
         "legend.frameon": False,
         "savefig.facecolor": SURFACE,
         "savefig.bbox": "tight",
+        "svg.hashsalt": "twinlens",  # stable element ids -> reproducible SVGs
     }
 )
 
 
 def _save(fig, out: Path, name: str) -> None:
     out.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out / f"{name}.png", dpi=200)
-    fig.savefig(out / f"{name}.svg")
+    fig.savefig(out / f"{name}.png", dpi=200, metadata={"Software": None})
+    fig.savefig(out / f"{name}.svg", metadata={"Date": None})
     plt.close(fig)
 
 

@@ -69,7 +69,7 @@ cd web && npm ci && cd ..
 make serve        # builds the dashboard; open http://localhost:8000
 make test         # 33 Python tests (unit, reproduction, twin invariants, API)
 make web-test     # type-check + vitest
-make e2e          # Playwright end-to-end (with `make serve` running)
+make e2e          # Playwright end-to-end, incl. dark mode (with `make serve` running)
 make analyze      # re-derive every number in the report from the committed sweep data
 ```
 

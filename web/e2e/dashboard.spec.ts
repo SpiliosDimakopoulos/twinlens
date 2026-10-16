@@ -39,3 +39,13 @@ test("fidelity study and reproductions render", async ({ page }) => {
   await expect(page.locator("svg[aria-label='IOI direct logit attribution per head']")).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/reproductions.png`, fullPage: true });
 });
+
+test("dark mode renders with its own tokens", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Trace" }).click();
+  await expect(page.getByText("Reasoning path")).toBeVisible();
+  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  expect(bg).toBe("rgb(13, 13, 13)");
+  await page.screenshot({ path: `${SHOTS}/twin-dark.png`, fullPage: true });
+});

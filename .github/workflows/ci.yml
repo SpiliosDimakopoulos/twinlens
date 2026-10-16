@@ -24,3 +24,8 @@ jobs:
       - run: npx tsc -b
       - run: npm test
       - run: npm run build
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t twinlens .
