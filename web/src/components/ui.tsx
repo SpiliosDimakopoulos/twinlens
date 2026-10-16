@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 import type { TopToken } from "../api";
 
 export function Card({ title, subtitle, children, right }: {
-  title: string; subtitle?: ReactNode; children: ReactNode; right?: ReactNode;
+  title: ReactNode; subtitle?: ReactNode; children: ReactNode; right?: ReactNode;
 }) {
   return (
-    <section className="card p-4 sm:p-5">
+    <section className="card min-w-0 p-4 sm:p-5">
       <header className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-ink">{title}</h2>
@@ -40,7 +40,7 @@ export function TokenBars({ items, max = 1, color = "var(--series-1)" }: {
 export function Button({ children, onClick, disabled, kind = "primary" }: {
   children: ReactNode; onClick?: () => void; disabled?: boolean; kind?: "primary" | "ghost";
 }) {
-  const base = "rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:opacity-50";
+  const base = "whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:opacity-50";
   const style = kind === "primary"
     ? { background: "var(--series-1)", color: "#fff" }
     : { background: "transparent", color: "var(--text-primary)", border: "1px solid var(--border)" };
@@ -59,7 +59,6 @@ export function Stat({ label, value, note }: { label: string; value: string; not
   );
 }
 
-export { tokenText } from "../lib";
 
 export function ErrorNote({ error }: { error: string | null }) {
   if (!error) return null;

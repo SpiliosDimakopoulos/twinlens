@@ -231,6 +231,7 @@ def whatif(req: WhatIfRequest) -> dict:
         "levels": result,
         "signals": signals,
         "trust": trust.predict(signals) if trust else None,
+        "trust_factors": trust.explain(signals) if trust else [],
         "label": twin.feature_label(req.layer, req.feature),
     }
 

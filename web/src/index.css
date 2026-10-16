@@ -116,3 +116,20 @@ body {
   white-space: pre;
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
 }
+
+:focus-visible {
+  outline: 2px solid var(--series-1);
+  outline-offset: 2px;
+}
+svg g[role="button"]:focus-visible {
+  outline: none; /* the node draws its own ring on focus */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

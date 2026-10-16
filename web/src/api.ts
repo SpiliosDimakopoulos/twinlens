@@ -41,6 +41,7 @@ export type WhatIfResponse = {
   levels: Record<string, LevelResult>;
   signals: Record<string, number>;
   trust: number | null;
+  trust_factors: { signal: string; value: number; contribution: number }[];
   label: string[];
 };
 

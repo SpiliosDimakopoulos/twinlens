@@ -60,6 +60,19 @@ Each step unfreezes one component, so every error is attributed to its source.
 |---|---|
 | ![Internals](docs/screenshots/internals.png) | ![Study](docs/screenshots/study.png) |
 
+<p>
+  <img src="docs/screenshots/twin-dark.png" width="72%" alt="Dark theme">
+  <img src="docs/screenshots/mobile.png" width="22%" alt="Phone layout">
+</p>
+
+**UX details.**
+- A prompt is traced as soon as the page opens, and the strongest feature is already simulated,
+  so there is no empty first screen.
+- Each what-if comes with a plain-language verdict ("the graph overstates the effect 21×") and
+  the three signals that drove its trust score.
+- Hovering a node isolates it in the graph, and every node can be reached with the keyboard.
+- Light, dark and system themes; the layout works at phone width; reduced motion is respected.
+
 ## Quickstart
 
 ```bash
@@ -71,7 +84,7 @@ cd web && npm ci && cd ..
 make serve        # builds the dashboard; open http://localhost:8000
 make test         # 33 Python tests (unit, reproduction, twin invariants, API)
 make web-test     # type-check + vitest
-make e2e          # Playwright end-to-end, incl. dark mode (with `make serve` running)
+make e2e          # 7 Playwright tests: flows, keyboard, dark mode, phone width (needs `make serve`)
 make analyze      # re-derive every number in the report from the committed sweep data
 ```
 

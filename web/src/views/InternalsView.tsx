@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type InterveneResponse, type RunResponse } from "../api";
 import { Heatmap } from "../components/Heatmap";
 import { diverging, sequential, useTokens } from "../components/theme";
-import { Button, Card, ErrorNote, TokenBars, tokenText } from "../components/ui";
+import { Button, Card, ErrorNote, TokenBars } from "../components/ui";
+import { tokenText } from "../lib";
 
 function useRun(prompt: string) {
   const [run, setRun] = useState<RunResponse | null>(null);

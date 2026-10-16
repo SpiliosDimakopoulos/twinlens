@@ -39,6 +39,20 @@ class TrustModel:
         z = float(self._x(signals) @ torch.tensor(self.coef)) + self.intercept
         return 1.0 / (1.0 + math.exp(-z))
 
+    def explain(self, signals: dict[str, float], k: int = 3) -> list[dict[str, float | str]]:
+        """The ``k`` signals that move this prediction most, as log-odds contributions
+        (coef x standardised value; positive = more trustworthy than an average edit)."""
+        contrib = self._x(signals) * torch.tensor(self.coef)
+        order = contrib.abs().argsort(descending=True)[:k]
+        return [
+            {
+                "signal": self.features[i],
+                "value": float(signals[self.features[i]]),
+                "contribution": float(contrib[i]),
+            }
+            for i in order.tolist()
+        ]
+
     def save(self, path: Path) -> None:
         path.write_text(json.dumps(asdict(self), indent=2))
 

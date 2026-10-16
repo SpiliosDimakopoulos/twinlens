@@ -55,6 +55,8 @@ def test_explain_and_whatif(client):
     if f["effect"] > 0:
         assert w["levels"]["direct"]["dlogp"] < 0
     assert w["trust"] is None or 0.0 <= w["trust"] <= 1.0
+    assert len(w["trust_factors"]) <= 3
+    assert all({"signal", "contribution"} <= set(f) for f in w["trust_factors"])
 
 
 def test_rejects_bad_input(client):
