@@ -31,6 +31,12 @@ def main() -> None:
     ap.add_argument("--small", action="store_true")
     ap.add_argument("--n-top", type=int, default=2)
     ap.add_argument("--n-random", type=int, default=2)
+    ap.add_argument(
+        "--chunk", type=int, default=24, help="edits per batched forward (lower = less RAM)"
+    )
+    ap.add_argument(
+        "--max-minutes", type=float, default=0, help="stop cleanly after this long (resume later)"
+    )
     ap.add_argument("--out", default=str(ROOT / "experiments" / "results"))
     args = ap.parse_args()
 
@@ -46,7 +52,10 @@ def main() -> None:
         if path.exists():
             continue
         t = time.perf_counter()
-        rows = run_prompt(twin, text, cat, i, args.n_top, args.n_random, seed=i)
+        if args.max_minutes and time.perf_counter() - t0 > args.max_minutes * 60:
+            print("time budget reached; rerun to resume", flush=True)
+            return
+        rows = run_prompt(twin, text, cat, i, args.n_top, args.n_random, chunk=args.chunk, seed=i)
         pd.DataFrame(rows).to_parquet(path)
         print(
             f"[{i + 1}/{len(prompts)}] {cat:10s} {len(rows)} edits "

@@ -1,0 +1,7 @@
+services:
+  twinlens:
+    build: .
+    ports: ["8000:8000"]
+    volumes: ["twinlens-cache:/cache"]
+volumes:
+  twinlens-cache:

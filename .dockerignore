@@ -1,0 +1,7 @@
+.venv
+.hf_cache
+web/node_modules
+web/dist
+experiments/results/raw*
+spike
+.git
