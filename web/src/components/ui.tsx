@@ -18,11 +18,12 @@ export function Card({ title, subtitle, children, right }: {
   );
 }
 
-/** Horizontal probability bars: thin marks, rounded data-end, labels in ink (not series colour). */
-export function TokenBars({ items, max, color = "var(--series-1)" }: {
+/** Horizontal probability bars on an absolute 0-100% scale (so a flat distribution looks flat):
+ * thin marks, rounded data-end, labels in ink (not series colour). */
+export function TokenBars({ items, max = 1, color = "var(--series-1)" }: {
   items: TopToken[]; max?: number; color?: string;
 }) {
-  const m = max ?? Math.max(...items.map((i) => i.prob), 1e-9);
+  const m = max;
   return (
     <ul className="space-y-1.5">
       {items.map((t) => (

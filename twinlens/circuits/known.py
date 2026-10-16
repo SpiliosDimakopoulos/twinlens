@@ -19,7 +19,7 @@ def induction_scores(model: GPT2, seq_len: int = 50, n_batch: int = 8) -> torch.
     """[n_layers, n_heads] mean attention from token i in the 2nd repeat to token i-seq_len+1."""
     tokens = repeated_random_tokens(model, n_batch, seq_len)
     names = [f"blocks.{l}.attn.hook_pattern" for l in range(model.cfg.n_layers)]
-    _, cache = model.run_with_cache(tokens, names)
+    _, cache = model.run_with_cache(tokens, names, last_only=True)
     scores = torch.zeros(model.cfg.n_layers, model.cfg.n_heads)
     for layer, name in enumerate(names):
         pat = cache[name]  # [b, h, q, k]

@@ -1,0 +1,15 @@
+{
+  "threads": 8,
+  "prompt_tokens": 15,
+  "load_s": 1.88,
+  "forward_ms": 193.6,
+  "run_with_cache_ms": 265.5,
+  "twin_trace_ms": 1011.2,
+  "attribution_ms": 906.3,
+  "whatif_direct_ms": 129.4,
+  "whatif_linear_ms": 165.8,
+  "whatif_replacement_ms": 418.9,
+  "whatif_replacement_ln_ms": 403.1,
+  "whatif_replacement_full_ms": 450.6,
+  "private_memory_gb": 0.82
+}

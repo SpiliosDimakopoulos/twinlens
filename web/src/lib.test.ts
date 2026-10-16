@@ -5,6 +5,7 @@ describe("tokenText", () => {
   it("keeps whitespace visible", () => {
     expect(tokenText("\n    return")).toBe(String.raw`\n    return`);
     expect(tokenText(" Paris")).toBe(" Paris");
+    expect(tokenText("<|endoftext|>")).toBe("BOS");
   });
 });
 

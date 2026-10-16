@@ -38,12 +38,20 @@ def test_explain_and_whatif(client):
     e = client.post("/api/twin/explain", json={"prompt": PROMPT}).json()
     assert e["features"], "expected features in the reasoning path"
     f = e["features"][0]
-    w = client.post("/api/twin/whatif", json={"prompt": PROMPT, "layer": f["layer"], "pos": f["pos"],
-                                               "feature": f["feature"], "value": 0.0}).json()
+    w = client.post(
+        "/api/twin/whatif",
+        json={
+            "prompt": PROMPT,
+            "layer": f["layer"],
+            "pos": f["pos"],
+            "feature": f["feature"],
+            "value": 0.0,
+        },
+    ).json()
     assert set(w["levels"]) >= {"direct", "linear", "replacement_full", "real"}
     for level in w["levels"].values():
         assert level["kl"] >= -1e-6 and abs(level["dlogp"]) < 1e3
-    # Ablating the strongest positive feature should not *raise* the prediction in reality.
+    # Ablating the strongest positive feature must lower the prediction in the direct twin.
     if f["effect"] > 0:
         assert w["levels"]["direct"]["dlogp"] < 0
     assert w["trust"] is None or 0.0 <= w["trust"] <= 1.0

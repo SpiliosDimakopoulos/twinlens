@@ -7,9 +7,9 @@ import { ReasoningGraph } from "./ReasoningGraph";
 import { WhatIf } from "./WhatIf";
 
 export const EXAMPLES = [
-  "The Colosseum is located in the city of",
-  "When Mary and John went to the store, John gave a drink to",
   "Michael Jordan plays the sport of",
+  "When Mary and John went to the store, John gave a drink to",
+  "The Colosseum is located in the city of",
   "def add(a, b):\n    return",
   "Monday, Tuesday, Wednesday,",
 ];

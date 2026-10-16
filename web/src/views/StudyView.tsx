@@ -22,7 +22,7 @@ function LadderMetric({ s, metric, title, pct }: { s: Summary; metric: string; t
   const vals = s.levels.map((lv) => s.ladder[lv][metric]);
   const max = Math.max(...vals.map((v) => v[2]), 1e-6);
   const H = 120, W = 300, bw = 36, gap = (W - bw * vals.length) / (vals.length + 1);
-  const fmt = (v: number) => (pct ? `${(v * 100).toFixed(0)}%` : v.toFixed(2));
+  const fmt = (v: number) => (pct ? `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%` : v.toFixed(2));
   return (
     <div>
       <div className="mb-1 text-xs font-medium text-ink">{title}</div>
@@ -62,6 +62,15 @@ function Decay({ s }: { s: Summary }) {
         </g>
       ))}
       {bins.map((b, i) => <text key={b} x={x(i)} y={H + 2} fontSize={9.5} textAnchor="middle" fill="var(--text-muted)">{b}</text>)}
+      {(() => {
+        // End labels, nudged apart so they never overlap.
+        const ends = s.levels.map((lv) => ({ lv, y: y(Math.max(0, s.decay[lv][s.decay[lv].length - 1].median_cos)) }))
+          .sort((a, b) => b.y - a.y);
+        for (let i = 1; i < ends.length; i++) ends[i].y = Math.min(ends[i].y, ends[i - 1].y - 12);
+        return ends.map(({ lv, y: ly }) => (
+          <text key={`l-${lv}`} x={x(bins.length - 1) + 8} y={ly + 3} fontSize={9.5} fill="var(--text-secondary)">{s.level_labels[lv]}</text>
+        ));
+      })()}
       {s.levels.map((lv, k) => {
         const pts = s.decay[lv].map((d, i) => [x(i), y(Math.max(0, d.median_cos))] as const);
         return (
@@ -72,7 +81,6 @@ function Decay({ s }: { s: Summary }) {
                 onMouseMove={(e) => show(e, <div><b>{s.level_labels[lv]}</b>, {bins[i]} layers after: median cos {s.decay[lv][i].median_cos.toFixed(2)} (n={s.decay[lv][i].n})</div>)}
                 onMouseLeave={hide} />
             ))}
-            <text x={pts[pts.length - 1][0] + 8} y={pts[pts.length - 1][1] + 3} fontSize={9.5} fill="var(--text-secondary)">{s.level_labels[lv]}</text>
           </g>
         );
       })}
@@ -94,11 +102,12 @@ export function StudyView() {
     <div className="space-y-4">
       <div className="max-w-3xl text-sm text-ink2">
         <p><b className="text-ink">Question.</b> Attribution graphs explain an LLM through an interpretable replacement model, a "twin". When the twin predicts what an intervention will do, how often is it right, why is it wrong, and can it tell in advance?</p>
+        <p className="mt-1"><b className="text-ink">The hard part.</b> Most edits barely move the output (median |Δlog p| = {s.real_effect.median_abs_dlogp.toFixed(3)}). On the {(s.real_effect.frac_big * 100).toFixed(0)}% that do (|Δlog p| &gt; 0.05), the graph twin is within tolerance only {(s.trust.base_rate_big * 100).toFixed(0)}% of the time, and the trust model still separates its hits from its misses (AUROC {s.trust.cv_auroc_big.toFixed(2)}).</p>
         <p className="mt-1">{s.n_edits.toLocaleString()} transcoder-feature edits (ablate / amplify ×2) on {s.n_prompts} prompts in 8 families; each edit is simulated at five twin levels and run on the real GPT-2.</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Trust model AUROC (held-out prompts)" value={s.trust.cv_auroc.toFixed(2)} note={`predicts when the graph twin is right; base rate ${(s.trust.base_rate * 100).toFixed(0)}%`} />
-        <Stat label="Right when trusted vs flagged" value={`${(s.trust.ok_rate_trusted_half * 100).toFixed(0)}% vs ${(s.trust.ok_rate_flagged_half * 100).toFixed(0)}%`} note="top vs bottom half of trust scores" />
+        <Stat label="Right when trusted vs flagged" value={`${(s.trust.ok_rate_trusted_half * 100).toFixed(1)}% vs ${(s.trust.ok_rate_flagged_half * 100).toFixed(0)}%`} note="top vs bottom half of trust scores" />
         <Stat label="Catastrophic misses, frozen → live LN" value={`${(cat("replacement") * 100).toFixed(1)}% → ${(cat("replacement_ln") * 100).toFixed(1)}%`} note="|error| > 1 nat" />
         <Stat label="Rank correlation, graph → live attention" value={`${s.ladder.linear.spearman[0].toFixed(2)} → ${s.ladder.replacement_full.spearman[0].toFixed(2)}`} note="Spearman ρ with the real effect" />
       </div>

@@ -22,7 +22,7 @@ def component_outputs(
     names = ["hook_embed", "hook_pos_embed", "ln_final.hook_scale"]
     for layer in range(L):
         names += [f"blocks.{layer}.attn.hook_result", f"blocks.{layer}.hook_mlp_out"]
-    _, cache = model.run_with_cache(tokens, names)
+    _, cache = model.run_with_cache(tokens, names, last_only=True)
     labels, outs = (
         ["embed", "pos_embed"],
         [cache["hook_embed"][:, pos], cache["hook_pos_embed"][:, pos]],
@@ -79,15 +79,19 @@ def logit_lens(model: GPT2, tokens: torch.Tensor, k: int = 5) -> dict[str, torch
     ]
     logits, cache = model.run_with_cache(tokens[:1], names)
     final = logits[0].argmax(-1)  # [pos]
-    stack = torch.stack([cache[n][0] for n in names])  # [L+1, pos, d]
-    lens_logits = model.unembed(model.ln_final(stack))
-    probs = lens_logits.softmax(-1)
-    top = probs.topk(k, dim=-1)
-    final_logit = lens_logits.gather(-1, final[None, :, None].expand(len(names), -1, 1))
-    final_rank = (lens_logits > final_logit).sum(-1)
+    top_ids, top_probs, ranks, fprobs = [], [], [], []
+    for n in names:  # one layer at a time: [pos, vocab] instead of [layers, pos, vocab]
+        lens_logits = model.unembed(model.ln_final(cache[n][0]))
+        probs = lens_logits.softmax(-1)
+        top = probs.topk(k, dim=-1)
+        top_ids.append(top.indices)
+        top_probs.append(top.values)
+        final_logit = lens_logits.gather(-1, final[:, None])
+        ranks.append((lens_logits > final_logit).sum(-1))
+        fprobs.append(probs.gather(-1, final[:, None])[:, 0])
     return {
-        "top_ids": top.indices,
-        "top_probs": top.values,
-        "final_rank": final_rank,
-        "final_prob": probs.gather(-1, final[None, :, None].expand(len(names), -1, 1))[..., 0],
+        "top_ids": torch.stack(top_ids),
+        "top_probs": torch.stack(top_probs),
+        "final_rank": torch.stack(ranks),
+        "final_prob": torch.stack(fprobs),
     }

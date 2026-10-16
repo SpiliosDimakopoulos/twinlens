@@ -1,6 +1,6 @@
 """CPU latency / memory benchmark for the numbers quoted in the README.
 
-    python bench/latency.py
+python bench/latency.py
 """
 
 from __future__ import annotations
@@ -49,8 +49,10 @@ def main() -> None:
         "run_with_cache_ms": round(timeit(lambda: m.run_with_cache(toks)), 1),
         "twin_trace_ms": round(timeit(lambda: twin.trace(toks), 3), 1),
         "attribution_ms": round(timeit(lambda: twin.feature_effects(trace, target), 3), 1),
-        **{f"whatif_{lv}_ms": round(timeit(lambda lv=lv: twin.run(trace, lv, edits), 3), 1)
-           for lv in TWIN_LEVELS},
+        **{
+            f"whatif_{lv}_ms": round(timeit(lambda lv=lv: twin.run(trace, lv, edits), 3), 1)
+            for lv in TWIN_LEVELS
+        },
         "private_memory_gb": round(proc.memory_info().private / 1e9, 2),
     }
     print(json.dumps(res, indent=2))

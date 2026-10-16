@@ -69,7 +69,10 @@ export type Summary = {
   ladder: Record<string, Record<string, Ci>>;
   decay: Record<string, { layers_after: string; median_cos: number; within_tol: number; catastrophic: number; n: number }[]>;
   decomposition: { frozen_layernorm: number; frozen_attention: number; transcoder_residual: number };
-  trust: { cv_auroc: number; base_rate: number; ok_rate_trusted_half: number; ok_rate_flagged_half: number; single_signal_auroc: Record<string, number> };
+  trust: {
+    cv_auroc: number; base_rate: number; cv_auroc_big: number; base_rate_big: number;
+    ok_rate_trusted_half: number; ok_rate_flagged_half: number; single_signal_auroc: Record<string, number>;
+  };
   real_effect: { median_abs_dlogp: number; frac_big: number; frac_flip: number };
 };
 

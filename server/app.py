@@ -182,7 +182,7 @@ def explain(req: RunRequest) -> dict:
         target = (
             int(trace.logits[-1].argmax()) if not req.target else model.to_single_token(req.target)
         )
-        rows = twin.attribute_logit(trace, target, top=24)
+        rows = twin.attribute_logit(trace, target, top=24, per_cell=3)
         recon = {
             l: float(trace.error[l][0, -1].norm() / trace.mlp_out[l][0, -1].norm())
             for l in range(model.cfg.n_layers)
@@ -254,7 +254,7 @@ def case_study(name: str) -> dict:
     model = get_twin().model
     with LOCK:
         if name == "induction":
-            scores = known.induction_scores(model)
+            scores = known.induction_scores(model, n_batch=4)
             return {
                 "grid": scores.tolist(),
                 "known": sorted(known.INDUCTION_HEADS),

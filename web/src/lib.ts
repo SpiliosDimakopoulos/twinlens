@@ -2,6 +2,7 @@ import type { GenerateStep } from "./api";
 
 /** Printable form of a token: escapes newlines/tabs so whitespace tokens stay visible. */
 export function tokenText(t: string): string {
+  if (t === "<|endoftext|>") return "BOS";
   return JSON.stringify(t).slice(1, -1);
 }
 

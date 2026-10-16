@@ -72,7 +72,7 @@ class Tokenizer:
         return self._tok.decode(list(ids))
 
     def token_str(self, i: int) -> str:
-        return self._tok.decode([int(i)])
+        return self._tok.decode([int(i)], skip_special_tokens=False)
 
     def str_tokens(self, ids: Iterable[int]) -> list[str]:
         return [self.token_str(i) for i in ids]
@@ -243,6 +243,7 @@ class GPT2:
         self,
         tokens: torch.Tensor,
         names_filter: Callable[[str], bool] | Iterable[str] | None = None,
+        last_only: bool = False,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         if names_filter is None:
             names = [n for n in self.hook_names() if not n.endswith("hook_result")]
@@ -256,7 +257,7 @@ class GPT2:
             cache[name] = x.detach()
 
         with self.hooks([(n, save) for n in names]):
-            logits = self.forward(tokens)
+            logits = self.forward(tokens, last_only=last_only)
         return logits, cache
 
     # --------------------------------------------------------------- utilities

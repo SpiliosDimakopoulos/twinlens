@@ -31,15 +31,19 @@ export function ReasoningGraph({ tokens, target, features, selected, onSelect }:
   const color = diverging(t, maxAbs);
   const out = { x: left + colW * (tokens.length - 0.5), y: 18 };
 
-  // Spread features that share a (layer, token) cell.
+  // Features sharing a (layer, token) cell are spread evenly across the column width.
+  const cellCount = new Map<string, number>();
+  for (const f of features) cellCount.set(`${f.layer}-${f.pos}`, (cellCount.get(`${f.layer}-${f.pos}`) ?? 0) + 1);
   const slots = new Map<string, number>();
   const placed = features.map((f) => {
     const k = `${f.layer}-${f.pos}`;
     const i = slots.get(k) ?? 0;
     slots.set(k, i + 1);
-    const x = left + colW * (f.pos + 0.5) + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 11;
+    const n = cellCount.get(k) ?? 1;
+    const step = Math.min(16, (colW - 12) / n);
+    const x = left + colW * (f.pos + 0.5) + (i - (n - 1) / 2) * step;
     const y = top + rowH * (11 - f.layer) + rowH / 2;
-    return { f, x, y, r: 4 + 7 * Math.sqrt(Math.abs(f.effect) / maxAbs) };
+    return { f, x, y, r: 3.5 + 5 * Math.sqrt(Math.abs(f.effect) / maxAbs) };
   });
 
   return (

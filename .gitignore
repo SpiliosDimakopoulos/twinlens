@@ -11,3 +11,7 @@ experiments/results/raw/
 *.egg-info/
 .env
 spike/*.log
+web/test-results/
+web/playwright-report/
+spike/server.log
+spike/pytest.log

@@ -242,8 +242,14 @@ class Twin:
         grads = torch.autograd.grad(logit, list(leaves.values()))
         return {l: (g * leaf.detach()) for (l, leaf), g in zip(leaves.items(), grads, strict=True)}
 
-    def attribute_logit(self, trace: CleanTrace, token: int, top: int = 20) -> list[dict]:
-        """The ``top`` features with the largest |direct effect| on ``logit[token]``."""
+    def attribute_logit(
+        self, trace: CleanTrace, token: int, top: int = 20, per_cell: int | None = None
+    ) -> list[dict]:
+        """The ``top`` features with the largest |direct effect| on ``logit[token]``.
+
+        ``per_cell`` caps how many features one (layer, position) cell may contribute, so a
+        display shows the circuit across tokens instead of one crowded cell.
+        """
         rows = []
         for l, eff in self.feature_effects(trace, token).items():
             idx = eff.flatten().abs().topk(min(top, eff.numel())).indices
@@ -260,6 +266,15 @@ class Twin:
                         }
                     )
         rows.sort(key=lambda r: -abs(r["effect"]))
+        if per_cell is not None:
+            seen: dict[tuple[int, int], int] = {}
+            kept = []
+            for r in rows:
+                cell = (r["layer"], r["pos"])
+                if seen.get(cell, 0) < per_cell:
+                    seen[cell] = seen.get(cell, 0) + 1
+                    kept.append(r)
+            rows = kept
         return rows[:top]
 
     def _leaf_forward(self, trace: CleanTrace, target_fn):
