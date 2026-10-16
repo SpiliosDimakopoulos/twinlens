@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { STATIC } from "./api";
 import { TooltipProvider } from "./components/Tooltip";
 import { CaseStudiesView } from "./views/CaseStudiesView";
 import { InternalsView } from "./views/InternalsView";
@@ -97,7 +98,7 @@ export default function App() {
         <footer className="mt-10 flex flex-wrap items-center justify-between gap-2 border-t pt-4 text-xs text-muted" style={{ borderColor: "var(--gridline)" }}>
           <span>GPT-2 small · Dunefsky et al. transcoders · runs on a laptop CPU</span>
           <span className="flex gap-4">
-            <a className="hover:text-ink" href={`${REPO}/blob/main/paper/REPORT.md`} target="_blank" rel="noreferrer">Technical report</a>
+            <a className="hover:text-ink" href={STATIC ? "./report/" : `${REPO}/blob/main/paper/REPORT.md`} target="_blank" rel="noreferrer">Technical report</a>
             <a className="hover:text-ink" href={REPO} target="_blank" rel="noreferrer">Source on GitHub</a>
           </span>
         </footer>

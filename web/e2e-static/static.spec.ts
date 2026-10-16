@@ -39,3 +39,12 @@ test("static demo: internals, study and reproductions load from precomputed data
   await page.getByRole("button", { name: "Reproductions" }).click();
   await expect(page.locator("svg[aria-label='Induction score per head']")).toBeVisible();
 });
+
+test("report page and PDF are published with the demo", async ({ page, request }) => {
+  await page.goto("./report/");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("derivatives they drop");
+  await expect(page.locator("img[src='figures/F5_fix.png']")).toBeVisible();
+  const pdf = await request.get("./report/TwinLens_report.pdf");
+  expect(pdf.status()).toBe(200);
+  expect(pdf.headers()["content-type"]).toContain("pdf");
+});

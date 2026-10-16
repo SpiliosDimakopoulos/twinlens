@@ -1,22 +1,36 @@
 # TwinLens
 
-[![ci](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml/badge.svg)](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue)
+[![ci](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml/badge.svg)](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml) [![live demo](https://img.shields.io/badge/live%20demo-open-2a78d6)](https://spiliosdimakopoulos.github.io/twinlens/) [![report](https://img.shields.io/badge/report-PDF-1baf7a)](docs/TwinLens_report.pdf) ![license](https://img.shields.io/badge/license-MIT-blue)
 
-**A digital twin of GPT-2's internals that tells you how far to trust its own explanations.**
+**A digital twin of GPT-2's internals that tells you how far to trust its own explanations, and
+a fix that makes those explanations faithful.**
+
+**[▶ Open the live demo](https://spiliosdimakopoulos.github.io/twinlens/)**: it runs in the browser, nothing to install.
+**[Read the report](https://spiliosdimakopoulos.github.io/twinlens/report/)** ([PDF](docs/TwinLens_report.pdf)).
 
 Attribution graphs explain an LLM through an interpretable *replacement model*, a "twin" of the
 real network. TwinLens runs that twin side by side with the real GPT-2. Click any feature in the
-reasoning graph and three things happen:
+reasoning graph and:
 
 1. the twin **predicts** what turning the feature off or up will do, at five levels of
-   approximation;
+   approximation, plus the proposed fix;
 2. the real model **answers**;
 3. a trust score, computed *before* the real model runs, tells you whether to believe the graph.
 
-![What-if: the graph twin predicts −2.0 nats, GPT-2 really moves −0.1, and the trust model flagged it in advance](docs/screenshots/whatif.png)
+![IOI: the attribution graph predicts the edit lowers log p(Mary) by 8.1; GPT-2 actually raises it by 0.23; the fixed graph predicts +0.32](docs/screenshots/hero.png)
+
+*In the IOI prompt above, the standard attribution graph predicts that this feature edit
+**lowers** the answer by 8.1 nats. GPT-2 actually **raises** it by 0.23. The same linear graph
+with the two derivatives restored predicts +0.32.*
+
+<details><summary>▶ 20-second tour (GIF)</summary>
+
+![Tour of the live demo](docs/demo.gif)
+
+</details>
 
 ## Headline results
-From 8,064 interventions on GPT-2 small; full write-up in [`paper/REPORT.md`](paper/REPORT.md).
+From 8,064 interventions on GPT-2 small; full write-up in [`paper/REPORT.md`](paper/REPORT.md) ([web](https://spiliosdimakopoulos.github.io/twinlens/report/), [PDF](docs/TwinLens_report.pdf)).
 
 | | |
 |---|---|

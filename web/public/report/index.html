@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TwinLens report</title>
+<meta name="description" content="Attribution graphs fail because of the derivatives they drop, not because they are linear">
+<style>
+:root { color-scheme: light; --bg:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --line:#e1e0d9; --accent:#2a78d6; --code:#f3f2ee; }
+@media (prefers-color-scheme: dark) { :root { color-scheme: dark; --bg:#141413; --ink:#f0efec;
+  --ink2:#c3c2b7; --muted:#898781; --line:#2c2c2a; --accent:#6da7ec; --code:#1f1f1d; }
+  img { background:#fcfcfb; border-radius:8px; } }
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin: 0 auto; max-width: 860px; padding: 40px 20px 80px; color: var(--ink);
+  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); }
+nav { display:flex; gap:16px; flex-wrap:wrap; font-size:14px; margin-bottom:28px; }
+nav a { color: var(--ink2); }
+h1 { font-size: 30px; line-height: 1.2; letter-spacing: -0.01em; margin: 0 0 8px; }
+h1 + h3 { font-weight: 500; color: var(--ink2); margin-top: 0; font-size: 18px; }
+h2 { margin-top: 40px; font-size: 22px; }
+h3 { margin-top: 30px; font-size: 18px; }
+a { color: var(--accent); }
+p, li { color: var(--ink); }
+em { color: var(--ink2); }
+img { max-width: 100%; height: auto; display: block; margin: 16px auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 16px 0;
+  font-variant-numeric: tabular-nums; display: block; overflow-x: auto; }
+th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { color: var(--ink2); font-weight: 600; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+pre { background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
+pre code { background: none; padding: 0; }
+hr { border: none; border-top: 1px solid var(--line); margin: 28px 0; }
+.meta { color: var(--muted); font-size: 13px; }
+@media print { html, body { background: #fff; } body { max-width: none; padding: 0 8mm; font-size: 11pt; } nav { display:none; }
+  h2 { break-before: auto; } img, table, pre { break-inside: avoid; } a { color: inherit; } }
+</style></head>
+<body>
+<nav><a href="../">← Live demo</a><a href="TwinLens_report.pdf">PDF</a><a href="https://github.com/SpiliosDimakopoulos/twinlens">Code on GitHub</a></nav>
+<h1>Attribution graphs fail because of the derivatives they drop, not because they are linear</h1>
+<h3>Measuring, explaining, predicting and fixing the counterfactual fidelity of transcoder replacement models in GPT-2 small</h3>
+<p><em>Technical report, TwinLens project, October 2026. Code, data and figures: https://github.com/SpiliosDimakopoulos/twinlens</em></p>
+<hr />
+<h2>Abstract</h2>
+<p>Attribution graphs explain a language model's computation through an interpretable
+<em>replacement model</em>: MLPs are swapped for sparse transcoders, while attention patterns and
+LayerNorm scales are frozen at the clean run. Their edges are read as causal claims: "turn this
+feature off and the output moves by this much". We test those claims directly. On GPT-2 small
+with per-layer transcoders, we make 8,064 feature interventions (ablate or amplify ×2) across 56
+prompts in 8 task families. We predict each intervention's effect with a ladder of twins, each
+unfreezing one more component of the real model, and then measure it on the real model.</p>
+<p>Four findings:</p>
+<ol>
+<li><strong>The linear twin that attribution graphs describe is a weak counterfactual predictor.</strong> Its
+    rank correlation with the real effect is ρ = 0.20 [0.14, 0.25]. On edits that measurably move
+    the output, it is within tolerance only 54% [47, 60] of the time. It is worst on
+    attention-mediated tasks: ρ ≈ 0.01 on IOI and 0.07 on induction.</li>
+<li><strong>The error comes from two frozen components.</strong> Frozen LayerNorm accounts for 88% of the
+    replacement twin's mean error and almost all catastrophic misses. Frozen attention accounts
+    for most of the remaining <em>ranking</em> error.</li>
+<li>
+<p><strong>The fix keeps the graph linear.</strong> Freezing a scale or a pattern drops its first-order
+    derivative. Restoring both terms (the LayerNorm-scale Jacobian and the softmax-pattern
+    Jacobian) still gives an exactly linear twin, so effects stay additive over sources. That
+    linear twin matches the fully nonlinear replacement model on every metric:</p>
+<ul>
+<li>ρ 0.20 → <strong>0.53</strong> [0.49, 0.56] (nonlinear twin: 0.52);</li>
+<li>sign agreement 67% → <strong>86%</strong>;</li>
+<li>catastrophic misses 2.2% → <strong>0.0%</strong>;</li>
+<li>IOI ρ 0.01 → <strong>0.59</strong>.</li>
+</ul>
+<p>The attribution graph's problem is therefore not linearity but the derivatives it drops.
+4. <strong>The twin can tell in advance when to trust it.</strong> A logistic "trust model" over nine
+signals computed from the clean run alone predicts whether today's graph prediction will
+hold. On held-out prompts its AUROC is 0.93. On held-out <em>task families</em> it is 0.93 as well
+(0.88–0.98). Among the top attribution edges with a noticeable effect, the graph is right
+54% of the time overall, 71% on the edges the trust model clears, and 22% on those it flags.</p>
+</li>
+</ol>
+<p>We ship this as a live tool. For any feature you click, TwinLens shows the effect predicted by
+every twin level, the real effect, and a trust score computed before the real model runs.</p>
+<hr />
+<h2>1. Motivation</h2>
+<p>Mechanistic interpretability increasingly explains model behaviour through replacement models:
+sparse autoencoders, transcoders and cross-layer transcoders, assembled into attribution graphs
+(Dunefsky et al., 2024; Ameisen et al., 2025; Lindsey et al., 2025). Such a graph is a <em>digital
+twin</em> of the model's computation on one prompt. Like an industrial digital twin, it is useful
+only if its simulations agree with the real system under intervention. Ameisen et al. validate
+graphs with perturbation experiments, and note that the replacement model's agreement with the
+real model degrades with depth after an intervention. To our knowledge there is no
+systematic, per-intervention account of <em>when</em> the twin's counterfactual predictions fail,
+<em>which</em> frozen component causes the failure, and <em>whether</em> failure can be anticipated without
+running the real model. That third question matters in practice. A user reading a graph cannot
+re-run every edge as an experiment.</p>
+<h2>2. Setup</h2>
+<p><strong>Model.</strong> GPT-2 small (124M parameters, 12 layers, 12 heads, d_model = 768). It runs on our own
+~250-line PyTorch implementation (<a href="https://github.com/SpiliosDimakopoulos/twinlens/blob/main/twinlens/core/gpt2.py"><code>twinlens/core/gpt2.py</code></a>), which exposes TransformerLens-style
+hook points and reads weights through memory-mapped safetensors. The whole system (model, 12
+transcoders, activation caches) fits in 0.82 GB of private memory on a laptop CPU. Logits match
+Hugging Face <code>GPT2LMHeadModel</code> to 7×10⁻⁵ (max abs).</p>
+<p><strong>Twin features.</strong> We use the per-layer MLP transcoders for GPT-2 small of Dunefsky, Chlenski &amp;
+Nanda (2024): 24,576 ReLU features per layer. Each reads <code>LayerNormPre(resid_mid)</code> and predicts
+<code>mlp_out</code>. We verified this convention empirically: at layer 8 it gives L0 ≈ 66 and FVU 0.41,
+while the alternatives give FVU &gt; 1. On an 87-token paragraph, splicing a transcoder in place of
+its MLP recovers 63–94% of the loss gap to mean-ablating that MLP (layers 2, 5, 8, 11).</p>
+<p><strong>Validating the instrument.</strong> Before making any new measurement, the implementation reproduces
+published GPT-2 small results. Each one is pinned as a test (<a href="https://github.com/SpiliosDimakopoulos/twinlens/blob/main/tests/test_reproduction.py"><code>tests/test_reproduction.py</code></a>):</p>
+<ul>
+<li><strong>Induction heads</strong> (Olsson et al., 2022). On repeated random tokens, the five highest
+    induction scores are exactly heads 5.1, 5.5, 6.9, 7.2 and 7.10.</li>
+<li><strong>Indirect object identification</strong> (Wang et al., 2022):<ul>
+<li>The top-3 heads by direct logit attribution to IO − S are the name movers 9.9, 9.6 and 10.0.</li>
+<li>The two most negative heads are the negative name movers 10.7 and 11.10.</li>
+<li>Activation patching of heads ranks 9.9 first.</li>
+<li>Mean-ablating the name movers lowers the logit difference from 2.85 to 2.0, while three
+random heads leave it unchanged. The drop is only partial, consistent with the backup name
+movers the paper reports.</li>
+</ul>
+</li>
+<li><strong>Causal tracing</strong> (Meng et al., 2022):<ul>
+<li>Restoring the residual stream reproduces the early site (last subject token) and the late
+site (final token).</li>
+<li>Attention effects concentrate at the final token in layers 8–10.</li>
+<li>In GPT-2 small the MLP effect at the last subject token peaks in layers 0–1. This is earlier
+than the mid-layer site reported for GPT-2 XL.</li>
+</ul>
+</li>
+<li><strong>Completeness.</strong> Per-component direct logit attributions sum to the logit difference
+    (within 10⁻³).</li>
+</ul>
+<h2>3. The twin ladder</h2>
+<p>Fix a prompt and its clean run. A <em>feature edit</em> sets transcoder feature <em>f</em> at layer <em>l</em> and
+position <em>p</em> from its clean activation <em>a</em> to <em>a′</em>: 0 to ablate, 2a to amplify. We compare the
+change it causes in the log-probability of the clean top-1 token, Δlog p, under six models:</p>
+<table>
+<thead>
+<tr>
+<th>level</th>
+<th>downstream features</th>
+<th>LayerNorm scales</th>
+<th>attention patterns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 Direct edges</td>
+<td>held at clean values</td>
+<td>frozen</td>
+<td>frozen</td>
+</tr>
+<tr>
+<td>2 Linear (graph)</td>
+<td>ReLU gates frozen (linear)</td>
+<td>frozen</td>
+<td>frozen</td>
+</tr>
+<tr>
+<td>3 Replacement</td>
+<td>recomputed (ReLU)</td>
+<td>frozen</td>
+<td>frozen</td>
+</tr>
+<tr>
+<td>4 + live LayerNorm</td>
+<td>recomputed</td>
+<td>live</td>
+<td>frozen</td>
+</tr>
+<tr>
+<td>5 + live attention</td>
+<td>recomputed</td>
+<td>live</td>
+<td>live</td>
+</tr>
+<tr>
+<td>Fix A: graph + LN Jacobian</td>
+<td>ReLU gates frozen (linear)</td>
+<td>frozen + first-order term</td>
+<td>frozen</td>
+</tr>
+<tr>
+<td>Fix B: graph + LN &amp; attention Jacobians</td>
+<td>ReLU gates frozen (linear)</td>
+<td>frozen + first-order term</td>
+<td>frozen + first-order term</td>
+</tr>
+<tr>
+<td>Real GPT-2</td>
+<td>real MLPs</td>
+<td>live</td>
+<td>live</td>
+</tr>
+</tbody>
+</table>
+<p>In every twin level, each MLP is replaced by its transcoder plus that layer's clean-run error
+term (<code>mlp_out − transcoder(mlp_in)</code>), held fixed. So at zero perturbation every level
+reproduces the clean logits exactly; this is tested for all six. In the real model, an edit
+moves the feature's decoder direction, <code>mlp_out[p] += (a′ − a)·W_dec[f]</code>, and everything
+downstream is recomputed.</p>
+<p>Level 2 is affine in the perturbation, which is tested. It is exactly the object an attribution
+graph linearises: graph edges are its partial derivatives. Level 1 keeps only the edited
+feature's direct path. Its prediction equals the gradient × activation attribution, and our
+tests check this equality to 1%. Because levels 3–5 each unfreeze one component, the gaps
+between consecutive levels attribute the twin's error to its sources.</p>
+<p><strong>Edits.</strong> For each prompt and each layer we take two groups of features:</p>
+<ul>
+<li>the 3 active features with the largest |direct effect| on the predicted token ("top": the
+    edges a user would inspect first);</li>
+<li>3 uniformly random active features ("random").</li>
+</ul>
+<p>Each feature is both ablated and amplified. BOS is excluded. The 56 prompts span 8 families:
+factual recall, IOI, induction/copying, syntax, code, sequences, narrative and sentiment
+(<code>experiments/prompts.json</code>). That gives 8,064 edits × 6 models.</p>
+<p><strong>Metrics.</strong></p>
+<ul>
+<li>Spearman ρ between predicted and real Δlog p.</li>
+<li>Median cosine between the predicted and real change in centred logits.</li>
+<li>Sign agreement, on edits where |real Δlog p| &gt; 0.05.</li>
+<li>Catastrophic misses: |error| &gt; 1 nat.</li>
+<li><em>Within tolerance</em>: |predicted − real| ≤ 0.1 + 0.25·|real|.</li>
+</ul>
+<p>Intervals are 95% cluster bootstraps over prompts (1,000 resamples).</p>
+<p><strong>Most edits barely matter.</strong> The median |real Δlog p| is 0.0024, and only 9.0% of edits move it
+by more than 0.05. Aggregate tolerance rates are therefore inflated by easy cases. We also report
+every headline number on this "noticeable effect" subset ("big" below).</p>
+<h2>4. Results</h2>
+<h3>4.1 The ladder</h3>
+<p><img alt="Twin ladder" src="figures/F1_ladder.png" /></p>
+<table>
+<thead>
+<tr>
+<th>level</th>
+<th>ρ (all)</th>
+<th>ρ (big)</th>
+<th>median cos</th>
+<th>sign agree (big)</th>
+<th>within tol (big)</th>
+<th>catastrophic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 Direct edges</td>
+<td>0.19 [0.14, 0.24]</td>
+<td>0.27 [0.12, 0.39]</td>
+<td>0.38 [0.37, 0.40]</td>
+<td>64.6% [58.1, 70.2]</td>
+<td>73.1% [67.5, 78.3]</td>
+<td>0.3% [0.1, 0.4]</td>
+</tr>
+<tr>
+<td>2 Linear (graph)</td>
+<td>0.20 [0.15, 0.25]</td>
+<td>0.24 [0.09, 0.37]</td>
+<td>0.27 [0.25, 0.30]</td>
+<td>66.5% [60.5, 71.9]</td>
+<td>54.2% [47.4, 60.5]</td>
+<td>2.2% [1.8, 2.7]</td>
+</tr>
+<tr>
+<td>3 Replacement</td>
+<td>0.22 [0.16, 0.26]</td>
+<td>0.28 [0.16, 0.41]</td>
+<td>0.27 [0.25, 0.30]</td>
+<td>68.7% [63.6, 73.3]</td>
+<td>55.1% [49.1, 60.9]</td>
+<td>4.3% [3.7, 4.9]</td>
+</tr>
+<tr>
+<td>4 + live LayerNorm</td>
+<td>0.31 [0.25, 0.37]</td>
+<td>0.41 [0.26, 0.53]</td>
+<td>0.50 [0.49, 0.52]</td>
+<td>73.1% [66.8, 78.3]</td>
+<td>73.7% [67.8, 78.7]</td>
+<td>0.2% [0.1, 0.3]</td>
+</tr>
+<tr>
+<td>5 + live attention</td>
+<td>0.52 [0.49, 0.56]</td>
+<td>0.64 [0.56, 0.71]</td>
+<td>0.62 [0.61, 0.64]</td>
+<td>84.4% [81.2, 87.1]</td>
+<td>79.3% [75.7, 82.5]</td>
+<td>0.2% [0.1, 0.3]</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The graph twin is a weak counterfactual predictor, and it fails in the cases that matter
+most.</strong> For the 50% of edits taken from the top attribution edges, catastrophic misses rise to
+4.2% at level 2, against 0.3% for random features. The edges a user is most likely to act on
+are the ones most likely to be badly wrong.</p>
+<p><strong>Reading a single edge beats propagating through the frozen linear twin.</strong> The direct-edge
+prediction has higher median cosine (0.38 vs 0.27), a higher within-tolerance rate on big
+edits (73% vs 54%), and almost no catastrophic misses (0.3% vs 2.2%). Propagating a
+perturbation through frozen LayerNorm <em>amplifies</em> it instead of renormalising it. As a result,
+adding the indirect paths makes the prediction worse.</p>
+<h3>4.2 Where the error comes from</h3>
+<p><img alt="Error sources" src="figures/F3_error_sources.png" /></p>
+<p>Measured by clipped mean error (errors capped at 5 nats), frozen LayerNorm accounts for <strong>88%</strong>
+of the replacement twin's error. Frozen attention accounts for 1.5%, and the transcoders (their
+reconstruction error, held fixed) for the remaining 11%.</p>
+<p>The mechanism is easy to see in single cases. An amplified layer-0 feature whose decoder
+contribution is 50–90% of the residual-stream norm pushes the frozen-scale twin far outside the
+transcoders' training distribution. Downstream features then grow layer after layer, and in
+extreme cases the predicted change in log-probability exceeds 10⁷ nats. The real model, with
+live LayerNorm, renormalises the perturbation away.</p>
+<p>Attention is a small share of <em>mean</em> error but a large share of <em>ranking</em> error. Making it live
+lifts ρ from 0.31 to 0.52 and sign agreement from 73% to 84%. Its errors are many and moderate,
+rather than few and catastrophic. The per-family breakdown agrees. At level 2, ρ is 0.01 on IOI
+and 0.07 on induction (both attention-mediated circuits) but 0.36 on factual recall. At level 5
+all families sit between 0.43 and 0.58.</p>
+<h3>4.3 Fidelity decays with depth</h3>
+<p><img alt="Decay" src="figures/F2_decay.png" /></p>
+<p>The median cosine between predicted and real Δlogits falls with the number of layers between
+the edit and the output, at every level. The decline matches the per-layer compounding Ameisen
+et al. describe. For the graph twin it goes from 0.71 (0–2 layers) to 0.05 (9–11 layers). For
+the live-attention twin it goes from 0.89 to 0.32.</p>
+<h3>4.4 Predicting when the twin is wrong</h3>
+<p><img alt="Trust" src="figures/F4_trust.png" /></p>
+<p>The trust model predicts <em>within tolerance</em> for the graph twin from nine signals of the clean
+run, with no access to the real model's response. Under 5-fold cross-validation grouped by
+prompt:</p>
+<ul>
+<li><strong>AUROC 0.93</strong> over all edits (base rate 90%).</li>
+<li><strong>AUROC 0.84</strong> on big edits, where the base rate is only 54%.</li>
+<li>The best single signal, relative edit size (‖Δa·W_dec‖ / ‖resid‖), reaches 0.90. Activation
+    reaches 0.85, layers to output 0.78, and |direct effect| 0.78.</li>
+<li><strong>Trusted vs flagged.</strong> Ranking edits by predicted trust, the top half is within tolerance
+    99.8% of the time and the bottom half 80.6%.</li>
+<li><strong>Calibration.</strong> Calibration is reasonable at the top, where most edits sit: predicted 0.95 vs
+    observed 0.96. It is slightly over-confident between 0.3 and 0.7.</li>
+</ul>
+<p>The standardised coefficients are interpretable. Trust falls with edit size (−0.53),
+activation (−0.66), the number of layers to the output (−0.53), the number of active downstream
+features (−0.33), and attention from the output position to the edited token (−0.30). It rises
+with model confidence (+0.56).</p>
+<h3>4.5 The fix: keep the derivatives, keep the linearity</h3>
+<p><img alt="The fix" src="figures/F5_fix.png" /></p>
+<p>Freezing a LayerNorm scale σ at its clean value is a zeroth-order approximation of σ. A
+first-order linearisation of the normalised output n = u/σ(u) around the clean point gives</p>
+<pre><code>dn = da − n₀ (n₀ · da) / d,      where a = u / σ₀ is the frozen-scale output.
+</code></pre>
+<p>Freezing σ keeps only <code>da</code>. Similarly, freezing an attention pattern drops</p>
+<pre><code>dp = p₀ ⊙ (ds − Σₖ p₀ ds),       with ds = (dq · k₀ + q₀ · dk) / √d_head,
+</code></pre>
+<p>together with the bilinear term in z = p·v, which we remove so that z = p₀v + dp·v₀.</p>
+<p>Restoring these terms costs nothing in linearity:</p>
+<ul>
+<li><strong>Fix B is affine</strong> in the perturbation, which is tested.</li>
+<li><strong>It is the exact first-order expansion</strong> of the gated-feature twin with live LayerNorm and
+    attention. On a 1% edit it agrees with that twin to &lt; 5%, while the frozen versions do not
+    (<a href="https://github.com/SpiliosDimakopoulos/twinlens/blob/main/tests/test_twin.py"><code>tests/test_twin.py</code></a>).</li>
+<li><strong>In practice, it is the attribution graph you get by <em>not detaching</em></strong> the LayerNorm scales
+    and attention scores when backpropagating.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>twin</th>
+<th>ρ (all)</th>
+<th>ρ (big)</th>
+<th>median cos</th>
+<th>sign agree (big)</th>
+<th>within tol (big)</th>
+<th>catastrophic</th>
+<th>mean err</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Graph today (frozen LN + attention)</td>
+<td>0.20 [0.14, 0.25]</td>
+<td>0.24 [0.07, 0.36]</td>
+<td>0.27 [0.25, 0.30]</td>
+<td>66.5% [59.6, 71.7]</td>
+<td>54.2% [47.1, 60.1]</td>
+<td>2.2% [1.7, 2.8]</td>
+<td>0.113</td>
+</tr>
+<tr>
+<td>Fix A: + LN Jacobian</td>
+<td>0.31 [0.25, 0.36]</td>
+<td>0.41 [0.28, 0.53]</td>
+<td>0.50 [0.49, 0.52]</td>
+<td>73.0% [67.4, 78.2]</td>
+<td>74.6% [69.0, 80.1]</td>
+<td>0.2% [0.1, 0.4]</td>
+<td>0.024</td>
+</tr>
+<tr>
+<td><strong>Fix B: + LN &amp; attention Jacobians</strong></td>
+<td><strong>0.53 [0.49, 0.56]</strong></td>
+<td><strong>0.66 [0.59, 0.72]</strong></td>
+<td><strong>0.62 [0.61, 0.64]</strong></td>
+<td><strong>85.7% [82.1, 88.8]</strong></td>
+<td><strong>80.1% [75.6, 84.6]</strong></td>
+<td><strong>0.0% [0.0, 0.1]</strong></td>
+<td><strong>0.019</strong></td>
+</tr>
+<tr>
+<td>Nonlinear twin (live LN + attention)</td>
+<td>0.52 [0.49, 0.56]</td>
+<td>0.64 [0.56, 0.71]</td>
+<td>0.62 [0.61, 0.64]</td>
+<td>84.4% [81.6, 87.1]</td>
+<td>79.3% [75.5, 82.8]</td>
+<td>0.2% [0.1, 0.3]</td>
+<td>0.022</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Fix A alone captures the entire benefit of live LayerNorm.</strong> It matches level 4 on every
+    metric while staying linear. It cuts mean error by 79%, and catastrophic misses among the top
+    edges from 4.2% to 0.47%.</li>
+<li><strong>Fix B matches or exceeds the nonlinear twin on every metric.</strong> Top-edge catastrophic misses
+    fall to 0.10%. Since Fix B is linear and the nonlinear twin is not, the remaining gap to the
+    real model is due to the transcoders, not to linearisation.</li>
+</ul>
+<p><img alt="Per family" src="figures/F6_families.png" /></p>
+<p>The gains are largest exactly where today's graphs fail: IOI ρ goes from 0.01 to 0.59 and
+induction from 0.07 to 0.48. These are the attention-mediated circuits, where freezing attention
+patterns removes the mechanism itself.</p>
+<h3>4.6 Does the trust model transfer, and what does it buy?</h3>
+<ul>
+<li><strong>Transfer.</strong> Leaving out one task family at a time (training on 7, testing on the 8th), the
+    trust model's AUROC is 0.93 on average, ranging from 0.88 (sentiment) to 0.98 (sequences). It
+    is not memorising task types.</li>
+<li>
+<p><strong>Payoff.</strong> Consider the edges a user would actually inspect: the top attribution edges, on
+    edits with a noticeable effect (n = 718).</p>
+<ul>
+<li>Today's graph is within tolerance on 54% of them.</li>
+<li>Keeping only the edges the trust model clears (66% of them) raises that to 71%.</li>
+<li>The flagged third is right only 22% of the time.</li>
+</ul>
+<p>A one-line filter therefore turns a coin flip into a usable signal, without running a single
+extra intervention.</p>
+</li>
+</ul>
+<h2>5. Limitations</h2>
+<ul>
+<li><strong>One small model, one transcoder family.</strong> GPT-2 small with per-layer transcoders. Cross-layer
+    transcoders, which the current circuit-tracing work uses, and larger models may behave
+    differently. Our hardware (CPU, ~2.5 GB of free memory) ruled them out here.</li>
+<li><strong>The intervention is defined in the twin's basis.</strong> In the real model we move the feature's
+    decoder direction rather than "the concept". This is the natural ground truth for the claim
+    "this edge matters", but it is not the only possible one.</li>
+<li><strong>The tolerance threshold is a choice</strong> (0.1 nats + 25%). The ladder's ordering is the same
+    under rank correlation and cosine, which use no threshold.</li>
+<li><strong>Small prompt set</strong> (56 prompts, written by us), and only one prediction target per prompt
+    (the top-1 token). The bootstrap is over prompts, so the intervals reflect this.</li>
+<li><strong>Graphs built on Fix B are denser.</strong> Edges then also flow through attention <em>scores</em> (QK
+    paths), not only OV paths. Effects remain additive and exact for the linear twin, but we
+    have not measured how much this increases graph size after pruning.</li>
+<li><strong>The trust model is fitted to this distribution of edits</strong> (top and random features, ablate
+    and ×2). Its transfer to other edit types, such as steering with large coefficients, is untested.</li>
+</ul>
+<h2>6. Related work</h2>
+<ul>
+<li><strong>Circuits and their validation.</strong> Elhage et al. (2021) give the framework. Olsson et al.
+    (2022) and Wang et al. (2022) describe the circuits we reproduce. Meng et al. (2022)
+    introduced causal tracing. On activation-patching practice: Zhang &amp; Nanda (2024); Heimersheim
+    &amp; Nanda (2024).</li>
+<li><strong>Sparse replacement models.</strong><ul>
+<li>Sparse autoencoders: Bricken et al. (2023); Cunningham et al. (2023).</li>
+<li>Sparse feature circuits: Marks et al. (2024).</li>
+<li>Transcoders: Dunefsky, Chlenski &amp; Nanda (2024).</li>
+<li>Attribution graphs with cross-layer transcoders (Ameisen et al., 2025; Lindsey et al.,
+2025), and the open-source <code>circuit-tracer</code> library.</li>
+</ul>
+</li>
+<li><strong>Faithfulness of replacement models.</strong> Ameisen et al. report that perturbation agreement
+    decays with depth. Our contributions:<ul>
+<li>decomposing that error into frozen-LN, frozen-attention and transcoder components, on a
+large sampled set of interventions;</li>
+<li>showing that restoring the two dropped first-order terms removes it without giving up
+linearity;</li>
+<li>showing that the remaining failures can be anticipated from the clean run.</li>
+</ul>
+</li>
+</ul>
+<h2>7. Reproducing</h2>
+<pre><code>make test           # 33 tests, including the reproduction suite
+make sweep          # 8,064 edits, ~40 min on a laptop CPU (resumable)
+python experiments/extend_sweep.py --modes linear_lnjac     # Fix A, ~10 min
+python experiments/extend_sweep.py --modes linear_fulljac   # Fix B, ~15 min
+make analyze        # summary.json, trust_model.json, figures
+make serve          # dashboard at http://localhost:8000
+</code></pre>
+<p>The sweep's raw output (<code>experiments/results/fidelity.parquet</code>, 1.3 MB) is committed, so
+<code>make analyze</code> reproduces every number above without re-running the sweep.</p>
+<h2>References</h2>
+<ul>
+<li>Ameisen, E., Lindsey, J., et al. (2025). <em>Circuit Tracing: Revealing Computational Graphs in
+    Language Models.</em> Transformer Circuits Thread.</li>
+<li>Bricken, T., et al. (2023). <em>Towards Monosemanticity: Decomposing Language Models With
+    Dictionary Learning.</em> Transformer Circuits Thread.</li>
+<li>Cunningham, H., Ewart, A., Riggs, L., Huben, R., &amp; Sharkey, L. (2023). <em>Sparse Autoencoders
+    Find Highly Interpretable Features in Language Models.</em> arXiv:2309.08600.</li>
+<li>Dunefsky, J., Chlenski, P., &amp; Nanda, N. (2024). <em>Transcoders Find Interpretable LLM Feature
+    Circuits.</em> NeurIPS 2024.</li>
+<li>Elhage, N., et al. (2021). <em>A Mathematical Framework for Transformer Circuits.</em> Transformer
+    Circuits Thread.</li>
+<li>Heimersheim, S., &amp; Nanda, N. (2024). <em>How to use and interpret activation patching.</em>
+    arXiv:2404.15255.</li>
+<li>Lindsey, J., et al. (2025). <em>On the Biology of a Large Language Model.</em> Transformer Circuits
+    Thread.</li>
+<li>Marks, S., Rager, C., Michaud, E. J., Belinkov, Y., Bau, D., &amp; Mueller, A. (2024). <em>Sparse
+    Feature Circuits.</em> arXiv:2403.19647.</li>
+<li>Meng, K., Bau, D., Andonian, A., &amp; Belinkov, Y. (2022). <em>Locating and Editing Factual
+    Associations in GPT.</em> NeurIPS 2022.</li>
+<li>Olsson, C., et al. (2022). <em>In-context Learning and Induction Heads.</em> Transformer Circuits
+    Thread.</li>
+<li>Wang, K., Variengien, A., Conmy, A., Shlegeris, B., &amp; Steinhardt, J. (2022). <em>Interpretability
+    in the Wild: a Circuit for Indirect Object Identification in GPT-2 small.</em> arXiv:2211.00593.</li>
+<li>Zhang, F., &amp; Nanda, N. (2024). <em>Towards Best Practices of Activation Patching in Language
+    Models.</em> ICLR 2024.</li>
+</ul>
+</body></html>
