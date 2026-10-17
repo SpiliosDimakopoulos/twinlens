@@ -158,6 +158,52 @@ function Families({ s }: { s: Summary }) {
   );
 }
 
+const GEN_METRICS: [string, string, boolean][] = [
+  ["spearman", "Δ rank correlation ρ", false],
+  ["sign_agree", "Δ sign agreement", true],
+  ["within_tol_big", "Δ within tolerance (edits that matter)", true],
+  ["catastrophic", "Δ catastrophic misses (lower is better)", true],
+];
+
+/** Paired improvement of the fix over today's graph on each model, with 95% CIs. */
+function Generalization({ g }: { g: NonNullable<Summary["generalization"]> }) {
+  const { show, hide } = useTooltip();
+  const models = Object.keys(g);
+  const colors = ["var(--lv-5)", "var(--series-2)"];
+  return (
+    <div className="space-y-4">
+      {GEN_METRICS.map(([m, label, pct]) => {
+        const all = models.flatMap((k) => g[k].paired_diff[m]);
+        const lo = Math.min(0, ...all), hi = Math.max(0, ...all);
+        const X = (v: number) => `${((v - lo) / (hi - lo || 1)) * 100}%`;
+        const f = (v: number) => (pct ? `${v >= 0 ? "+" : "−"}${Math.abs(v * 100).toFixed(1)} pp` : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`);
+        return (
+          <div key={m}>
+            <div className="kicker mb-1.5">{label}</div>
+            {models.map((k, i) => {
+              const [v, l, h] = g[k].paired_diff[m];
+              return (
+                <div key={k} className="grid grid-cols-[7.5rem_1fr_4.5rem] items-center gap-3 py-0.5 text-[12.5px]"
+                  onMouseMove={(e) => show(e, <div><b>{g[k].label}</b>: {f(v)} <span className="text-ink2">(95% CI {f(l)} to {f(h)}; {g[k].n_edits.toLocaleString()} edits)</span></div>)}
+                  onMouseLeave={hide}>
+                  <span className="text-ink2">{g[k].label}</span>
+                  <div className="relative h-3">
+                    <div className="absolute inset-y-[5px] left-0 right-0" style={{ background: "var(--gridline)" }} />
+                    <div className="absolute inset-y-0 w-px" style={{ left: X(0), background: "var(--text-muted)" }} />
+                    <div className="absolute top-[5px] h-[2px]" style={{ left: X(l), width: `calc(${X(h)} - ${X(l)})`, background: colors[i] }} />
+                    <div className="absolute top-[1px] h-[10px] w-[10px] -translate-x-1/2 rounded-full" style={{ left: X(v), background: colors[i], boxShadow: "0 0 0 2px var(--surface-1)" }} />
+                  </div>
+                  <span className="tnum text-right text-ink">{f(v)}</span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Section({ n, title, children, lede }: { n: string; title: string; lede: ReactNode; children: ReactNode }) {
   return (
     <section className="grid gap-x-12 gap-y-4 border-t pb-10 pt-6 rule lg:grid-cols-[minmax(0,330px)_1fr]">
@@ -247,6 +293,12 @@ export function StudyView() {
           <Card label="Fig. 10" title="Attention-heavy tasks gain most" subtitle={<>Rank correlation per task family: <span className="inline-block h-2 w-2 rounded-full align-middle" style={{ background: "var(--baseline)" }} /> graph today → <span className="inline-block h-2 w-2 rounded-full align-middle" style={{ background: "var(--fix)" }} /> graph + Jacobians; ring: nonlinear twin</>}>
             <Families s={s} />
           </Card>
+          {s.generalization && (
+            <Card label="Fig. 10b" title="It holds on a second architecture"
+              subtitle={<>Improvement of the fix over today's graph, paired on the same edits, on GPT-2 small and Qwen3-0.6B (RMSNorm, GQA, RoPE, QK-norm, SwiGLU; layers 10–27). Dot: estimate; whisker: 95% CI. Every interval excludes zero.</>}>
+              <Generalization g={s.generalization} />
+            </Card>
+          )}
         </Section>
       )}
 

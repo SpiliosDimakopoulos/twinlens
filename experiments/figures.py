@@ -367,3 +367,43 @@ def family_figure(summary: dict, out: Path) -> None:
     ]
     ax.legend(handles=handles, loc="upper left", fontsize=8.5, labelcolor=INK2)
     _save(fig, out, "F6_families")
+
+
+def generalization_figure(gen: dict, out: Path) -> None:
+    """Paired improvement of the fix over today's graph, per model, with 95% CIs."""
+    panels = [
+        ("spearman", "Δ rank correlation ρ", False, 1),
+        ("sign_agree", "Δ sign agreement", True, 1),
+        ("within_tol_big", "Δ within tolerance (edits that matter)", True, 1),
+        ("catastrophic", "Δ catastrophic misses", True, -1),
+    ]
+    models = list(gen)
+    colors = [LADDER[4], CAT[1]]
+    fig, axes = plt.subplots(1, 4, figsize=(13, 2.9))
+    for ax, (key, title, pct, better) in zip(axes, panels, strict=True):
+        for i, (m, c) in enumerate(zip(models, colors, strict=True)):
+            v, lo, hi = gen[m]["paired_diff"][key]
+            ax.plot([lo, hi], [i, i], color=c, linewidth=2, solid_capstyle="round")
+            ax.scatter([v], [i], s=55, color=c, edgecolor=SURFACE, linewidth=1.5, zorder=3)
+            txt = (f"{v:+.1%}" if abs(v) < 0.1 else f"{v:+.0%}") if pct else f"{v:+.2f}"
+            ax.text(hi, i + 0.22, txt, fontsize=8.5, color=INK2, ha="right")
+        ax.axvline(0, color=MUTED, linewidth=1, linestyle=(0, (3, 3)))
+        ax.set_yticks(
+            range(len(models)),
+            [gen[m]["label"] for m in models] if ax is axes[0] else [""] * len(models),
+        )
+        ax.set_ylim(-0.6, len(models) - 0.3)
+        ax.grid(axis="x"), ax.grid(axis="y", visible=False)
+        ax.set_title(title + ("  (lower is better)" if better < 0 else ""), fontsize=9.5)
+        if pct:
+            ax.xaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0, decimals=0))
+    fig.suptitle(
+        "The fix generalises: graph + Jacobians vs. graph today, paired on the same edits (95% CI)",
+        x=0.01,
+        ha="left",
+        fontsize=11.5,
+        fontweight="bold",
+        color=INK,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    _save(fig, out, "F7_generalization")

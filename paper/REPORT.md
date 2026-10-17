@@ -33,6 +33,10 @@ Four findings:
    - catastrophic misses 2.2% → **0.05%** (4 of 8,064 edits);
    - IOI ρ 0.01 → **0.59**.
 
+   The fix replicates on a second, architecturally different model, Qwen3-0.6B (§4.7): the
+   paired improvement in ρ is +0.12 [0.05, 0.20] and catastrophic misses fall from 3.0% to
+   0.8%. The gain is smaller than on GPT-2 but significant on every metric.
+
    The attribution graph's problem is therefore not linearity but the derivatives it drops.
 4. **The twin can tell in advance when to trust it.** A logistic "trust model" over nine
    signals computed from the clean run alone predicts whether today's graph prediction will
@@ -278,11 +282,51 @@ patterns removes the mechanism itself.
   A one-line filter therefore turns a coin flip into a usable signal, without running a single
   extra intervention.
 
+### 4.7 Does the fix generalise? Qwen3-0.6B
+
+We replicated Fix B (graph + LayerNorm and attention Jacobians, level `linear_fulljac`) on a
+second, architecturally different model: Qwen3-0.6B, which uses RMSNorm instead of LayerNorm,
+grouped-query attention, RoPE, QK-norm and SwiGLU. We used its public `circuit-tracer`
+transcoders (163,840 features per layer, `mwhanna/qwen3-0.6b-transcoders-lowl0`). The scope is
+smaller than for GPT-2: 2,304 feature edits on 16 prompts (2 per task family), with edits in
+layers 10-27 of 28 (the upper two thirds). The levels compared are direct edges, graph today
+(linear), Fix A (adding the normalisation Jacobian, here RMSNorm including QK-norm), Fix B, and
+the real model. The nonlinear replacement twins were not run on Qwen3, because a full
+164k-feature encode per simulation is too slow on CPU.
+
+The Jacobians are verified by tests on Qwen3 as well (`tests/test_qwen.py`): every level
+reproduces the clean run, the linear levels are exactly affine, and Fix B agrees with the
+live-norm/live-attention twin to within 5% on a 1% edit.
+
+| Level | ρ [95% CI] | sign agree | within tol (big) | catastrophic | mean err |
+|---|---|---|---|---|---|
+| Graph today | 0.34 [0.22, 0.42] | 78.5% | 51.5% | 3.0% | 0.138 |
+| Fix A | 0.42 [0.32, 0.50] | 85.6% | 58.6% | 1.4% | 0.083 |
+| Fix B | 0.45 [0.36, 0.54] | 87.7% | 62.0% | 0.8% | 0.070 |
+
+On induction prompts ρ rises from 0.04 to 0.28.
+
+![Generalisation](../experiments/figures/F7_generalization.png)
+
+Paired improvement of Fix B over graph today (same edits, 95% cluster bootstrap over prompts):
+
+- **GPT-2 small:** Δρ +0.33 [0.27, 0.39]; Δ sign agreement +19 pp [15, 24]; Δ within tolerance
+  (big) +26 pp [20, 32]; Δ catastrophic -2.2 pp [-2.7, -1.7].
+- **Qwen3-0.6B:** Δρ +0.12 [0.05, 0.20]; Δ sign agreement +9 pp [2, 17]; Δ within tolerance
+  (big) +10 pp [3, 18]; Δ catastrophic -2.2 pp [-3.7, -0.8].
+
+All intervals exclude zero. The direction of the gain is the same on every metric, but its
+magnitude is smaller on Qwen3. One candidate reason is the larger residual transcoder error of
+this transcoder family, which no Jacobian can repair; we have not tested this. The gain is also
+not uniform across task families: it is largest on induction, syntax, sentiment and IOI, and
+roughly flat on code and narrative.
+
 ## 5. Limitations
 
-- **One small model, one transcoder family.** GPT-2 small with per-layer transcoders. Cross-layer
-  transcoders, which the current circuit-tracing work uses, and larger models may behave
-  differently. Our hardware (CPU, ~2.5 GB of free memory) ruled them out here.
+- **Two models, two transcoder families.** GPT-2 small with per-layer transcoders, and
+  Qwen3-0.6B with `circuit-tracer` transcoders, where we covered only the upper 18 layers and
+  far fewer edits (§4.7). Larger models and cross-layer transcoders, which the current
+  circuit-tracing work uses, remain untested.
 - **The intervention is defined in the twin's basis.** In the real model we move the feature's
   decoder direction rather than "the concept". This is the natural ground truth for the claim
   "this edge matters", but it is not the only possible one.
@@ -323,6 +367,9 @@ make test           # 33 tests, including the reproduction suite
 make sweep          # 8,064 edits, ~40 min on a laptop CPU (resumable)
 python experiments/extend_sweep.py --modes linear_lnjac     # Fix A, ~10 min
 python experiments/extend_sweep.py --modes linear_fulljac   # Fix B, ~15 min
+python experiments/qwen_prepare.py                                   # Qwen3 transcoders, ~6 GB, ~70 min
+python experiments/fidelity_sweep.py --model qwen3 --per-family 2 --n-top 2 --n-random 2   # 2,304 edits, ~30 min
+python experiments/analyze_generalization.py
 make analyze        # summary.json, trust_model.json, figures
 make serve          # dashboard at http://localhost:8000
 ```

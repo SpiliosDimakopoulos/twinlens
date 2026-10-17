@@ -77,6 +77,7 @@ export type Summary = {
     payoff?: Record<string, { ok_all: number; ok_trusted: number; ok_flagged: number; kept_share: number; n: number }>;
   };
   real_effect: { median_abs_dlogp: number; frac_big: number; frac_flip: number };
+  generalization?: Record<string, { label: string; n_edits: number; n_prompts: number; layers: number[]; paired_diff: Record<string, Ci> }>;
   fix?: {
     levels: string[];
     ladder: Record<string, Record<string, Ci>>;
