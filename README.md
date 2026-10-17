@@ -1,6 +1,6 @@
 # TwinLens
 
-[![ci](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml/badge.svg)](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml) [![live demo](https://img.shields.io/badge/live%20demo-open-2a78d6)](https://spiliosdimakopoulos.github.io/twinlens/) [![report](https://img.shields.io/badge/report-PDF-1baf7a)](docs/TwinLens_report.pdf) ![license](https://img.shields.io/badge/license-MIT-blue) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23437556.svg)](https://doi.org/10.5281/zenodo.23437556)
+[![ci](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml/badge.svg)](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml) [![live demo](https://img.shields.io/badge/live%20demo-open-2a78d6)](https://spiliosdimakopoulos.github.io/twinlens/) [![report](https://img.shields.io/badge/report-PDF-1baf7a)](docs/TwinLens_report.pdf) ![license](https://img.shields.io/badge/license-MIT-blue) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23437556.svg)](https://doi.org/10.5281/zenodo.23437556) [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/SpiliosDimakopoulos/twinlens/blob/main/notebooks/reproduce_headline.ipynb)
 
 **A digital twin of GPT-2's internals that tells you how far to trust its own explanations, and
 a fix that makes those explanations faithful.**

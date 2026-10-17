@@ -100,6 +100,15 @@ def main() -> None:
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TwinLens report</title>
+<meta property="og:type" content="website" />
+<meta property="og:title" content="TwinLens report" />
+<meta property="og:description" content="Attribution graphs drop two derivatives. Restoring them keeps the graph linear and lifts counterfactual accuracy from rho 0.20 to 0.53 on GPT-2, replicated on Qwen3-0.6B." />
+<meta property="og:url" content="https://spiliosdimakopoulos.github.io/twinlens/report/" />
+<meta property="og:image" content="https://spiliosdimakopoulos.github.io/twinlens/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://spiliosdimakopoulos.github.io/twinlens/og.png" />
 <meta name="description" content="{title}">
 <style>{CSS}</style></head>
 <body>
