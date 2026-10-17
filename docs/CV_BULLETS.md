@@ -6,7 +6,7 @@ test suite. Keep them in sync if you re-run anything.
 ## CV entry (English)
 
 **TwinLens: an interpretability digital twin for LLMs** · Python, PyTorch, FastAPI, React/TypeScript · *2026*
-Live demo: spiliosdimakopoulos.github.io/twinlens · Code: github.com/SpiliosDimakopoulos/twinlens
+Live demo: spiliosdimakopoulos.github.io/twinlens · Code: github.com/SpiliosDimakopoulos/twinlens · DOI: 10.5281/zenodo.23437556
 - Built a "digital twin" of GPT-2's internals: a transcoder-based replacement model that
   predicts the effect of any feature intervention. The real model then verifies each
   prediction, and the dashboard shows predicted vs actual live.
@@ -31,7 +31,7 @@ raises counterfactual accuracy from ρ 0.20 to 0.53 while keeping graphs linear.
 ## Βιογραφικό (Ελληνικά)
 
 **TwinLens: Digital twin ερμηνευσιμότητας για LLMs** · Python, PyTorch, FastAPI, React/TypeScript · *2026*
-Live demo: spiliosdimakopoulos.github.io/twinlens · Κώδικας: github.com/SpiliosDimakopoulos/twinlens
+Live demo: spiliosdimakopoulos.github.io/twinlens · Κώδικας: github.com/SpiliosDimakopoulos/twinlens · DOI: 10.5281/zenodo.23437556
 - Ανέπτυξα έναν «ψηφιακό δίδυμο» του εσωτερικού του GPT-2: ένα μοντέλο αντικατάστασης με
   transcoders που προβλέπει το αποτέλεσμα κάθε παρέμβασης σε features. Το πραγματικό μοντέλο
   επαληθεύει κάθε πρόβλεψη, και το dashboard δείχνει πρόβλεψη και πραγματικότητα live.

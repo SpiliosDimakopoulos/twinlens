@@ -17,6 +17,7 @@ date-released: 2026-10-17
 license: MIT
 repository-code: "https://github.com/SpiliosDimakopoulos/twinlens"
 url: "https://spiliosdimakopoulos.github.io/twinlens/"
+doi: "10.5281/zenodo.23437556"
 keywords:
   - interpretability
   - attribution graphs
