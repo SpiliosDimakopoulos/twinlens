@@ -39,5 +39,5 @@ ignore = ["E741"]  # `l` for layer is the field convention
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-m 'not slow'"
-markers = ["slow: loads real models; deselect with -m 'not slow'"]
+addopts = "-m 'not slow and not qwen'"
+markers = ["slow: needs extra RAM (HF parity)", "qwen: needs the prepared Qwen3 transcoders (~7 GB)"]

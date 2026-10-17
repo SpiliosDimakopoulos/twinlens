@@ -55,13 +55,13 @@ class MmapSafetensors:
     def get(self, key: str) -> torch.Tensor:
         entry = self._entries[key]
         dtype = entry["dtype"]
-        if dtype not in _DTYPES:
-            raise TypeError(f"{key}: unsupported dtype {dtype} for mmap (e.g. BF16)")
+        if dtype not in _DTYPES and dtype != "BF16":
+            raise TypeError(f"{key}: unsupported dtype {dtype} for mmap")
         start, _ = entry["data_offsets"]
         shape = tuple(entry["shape"])
         arr = np.memmap(
             self.path,
-            dtype=_DTYPES[dtype],
+            dtype=np.uint16 if dtype == "BF16" else _DTYPES[dtype],
             mode="r",
             offset=self._data_offset + start,
             shape=shape if shape else (1,),
@@ -69,6 +69,8 @@ class MmapSafetensors:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)  # non-writable numpy array
             t = torch.from_numpy(arr)
+        if dtype == "BF16":  # numpy has no bfloat16: reinterpret the raw 16-bit words
+            t = t.view(torch.bfloat16)
         return t if shape else t.reshape(())
 
 
@@ -77,3 +79,33 @@ def hf_file(repo_id: str, filename: str, revision: str | None = None) -> Path:
     from huggingface_hub import hf_hub_download
 
     return Path(hf_hub_download(repo_id, filename, revision=revision, cache_dir=CACHE_DIR / "hub"))
+
+
+def convert_to_f32(src: str | Path, dst: str | Path, chunk_rows: int = 4096) -> Path:
+    """Rewrite a (BF16/F16) safetensors file as F32, streaming so peak RAM stays small.
+    CPUs without native bf16 run F32 matmuls much faster, and an mmapped F32 file costs page
+    cache, not committed memory."""
+    dst = Path(dst)
+    if dst.exists():
+        return dst
+    st = MmapSafetensors(src)
+    keys = sorted(st.keys())
+    header, off = {}, 0
+    for k in keys:
+        n = int(np.prod(st.shape(k))) if st.shape(k) else 1
+        header[k] = {"dtype": "F32", "shape": list(st.shape(k)), "data_offsets": [off, off + 4 * n]}
+        off += 4 * n
+    raw = json.dumps(header).encode()
+    raw += b" " * (-len(raw) % 8)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dst.with_suffix(".partial")
+    with open(tmp, "wb") as f:
+        f.write(struct.pack("<Q", len(raw)))
+        f.write(raw)
+        for k in keys:
+            t = st.get(k)
+            flat = t.reshape(t.shape[0], -1) if t.dim() > 1 else t.reshape(1, -1)
+            for i in range(0, flat.shape[0], chunk_rows):
+                f.write(flat[i : i + chunk_rows].float().contiguous().numpy().tobytes())
+    tmp.replace(dst)
+    return dst

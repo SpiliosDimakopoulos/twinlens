@@ -27,7 +27,7 @@ def reliability_signals(
     L = twin.model.cfg.n_layers
     last = trace.n_pos - 1
     a = trace.acts[edit.layer][edit.pos, edit.feature].item()
-    dec = twin.tcs[edit.layer].W_dec[edit.feature]
+    dec = twin.dec_row(trace, edit.layer, edit.feature)
     resid = trace.resid_mid[edit.layer][0, edit.pos]
     downstream = range(edit.layer + 1, L)
     err_frac = [

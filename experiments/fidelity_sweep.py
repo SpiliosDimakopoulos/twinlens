@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT))
 
 from twinlens.core.gpt2 import GPT2  # noqa: E402
 from twinlens.fidelity.engine import run_prompt  # noqa: E402
-from twinlens.twin.replacement import Twin  # noqa: E402
+from twinlens.twin.replacement import TWIN_LEVELS, Twin  # noqa: E402
 
 
 def main() -> None:
@@ -37,15 +37,26 @@ def main() -> None:
     ap.add_argument(
         "--max-minutes", type=float, default=0, help="stop cleanly after this long (resume later)"
     )
+    ap.add_argument("--model", choices=["gpt2", "qwen3"], default="gpt2")
+    ap.add_argument("--per-family", type=int, default=0, help="prompts per family (0 = all)")
     ap.add_argument("--out", default=str(ROOT / "experiments" / "results"))
     args = ap.parse_args()
 
     corpus = json.loads((ROOT / "experiments" / "prompts.json").read_text())
-    prompts = [(cat, p) for cat, ps in corpus.items() for p in (ps[:1] if args.small else ps)]
-    out = Path(args.out) / ("raw_small" if args.small else "raw")
+    keep = 1 if args.small else (args.per_family or None)
+    prompts = [(cat, p) for cat, ps in corpus.items() for p in ps[:keep]]
+    tag = "" if args.model == "gpt2" else f"_{args.model}"
+    out = Path(args.out) / (("raw_small" if args.small else "raw") + tag)
     out.mkdir(parents=True, exist_ok=True)
 
-    twin = Twin(GPT2.load("gpt2"))
+    if args.model == "gpt2":
+        twin, modes = Twin(GPT2.load("gpt2")), TWIN_LEVELS
+    else:  # nonlinear twins need full 164k-feature encodes per run: too slow on CPU
+        from twinlens.core.qwen3 import Qwen3
+        from twinlens.twin.transcoders import QwenTranscoderSet
+
+        twin = Twin(Qwen3.load(), QwenTranscoderSet(range(10, 28)))
+        modes = ("direct", "linear", "linear_lnjac", "linear_fulljac")
     t0 = time.perf_counter()
     for i, (cat, text) in enumerate(prompts):
         path = out / f"{i:04d}.parquet"
@@ -55,7 +66,9 @@ def main() -> None:
         if args.max_minutes and time.perf_counter() - t0 > args.max_minutes * 60:
             print("time budget reached; rerun to resume", flush=True)
             return
-        rows = run_prompt(twin, text, cat, i, args.n_top, args.n_random, chunk=args.chunk, seed=i)
+        rows = run_prompt(
+            twin, text, cat, i, args.n_top, args.n_random, chunk=args.chunk, seed=i, modes=modes
+        )
         pd.DataFrame(rows).to_parquet(path)
         print(
             f"[{i + 1}/{len(prompts)}] {cat:10s} {len(rows)} edits "
@@ -64,7 +77,7 @@ def main() -> None:
         )
 
     df = pd.concat([pd.read_parquet(p) for p in sorted(out.glob("*.parquet"))], ignore_index=True)
-    name = "fidelity_small.parquet" if args.small else "fidelity.parquet"
+    name = ("fidelity_small" if args.small else "fidelity") + tag + ".parquet"
     df.to_parquet(Path(args.out) / name)
     print(f"wrote {len(df)} rows -> {Path(args.out) / name}")
 

@@ -40,7 +40,7 @@ def sample_edits(
     """
     rng = random.Random(seed)
     specs: list[EditSpec] = []
-    for layer in range(twin.model.cfg.n_layers):
+    for layer in twin.layers:
         acts = trace.acts[layer][1:]
         active = acts.nonzero()
         if len(active) == 0:
@@ -86,6 +86,7 @@ def run_prompt(
     n_random: int = 2,
     chunk: int = 24,
     seed: int = 0,
+    modes: tuple[str, ...] = TWIN_MODES,
 ) -> list[dict]:
     model = twin.model
     trace = twin.trace(model.to_tokens(text))
@@ -98,7 +99,7 @@ def run_prompt(
     for start in range(0, len(specs), chunk):
         batch = specs[start : start + chunk]
         edits = [s.edit for s in batch]
-        outs = {mode: twin.run(trace, mode, edits) for mode in (*TWIN_MODES, "real")}
+        outs = {mode: twin.run(trace, mode, edits) for mode in (*modes, "real")}
         met = {mode: _effect_metrics(clean, o, target) for mode, o in outs.items()}
         real = met["real"]
         for i, spec in enumerate(batch):
@@ -115,7 +116,7 @@ def run_prompt(
                 "real_kl": real["kl"][i].item(),
                 "real_flip": bool(real["top1"][i] != target),
             }
-            for mode in TWIN_MODES:
+            for mode in modes:
                 m = met[mode]
                 cos = torch.nn.functional.cosine_similarity(
                     m["dlogits"][i], real["dlogits"][i], dim=0
