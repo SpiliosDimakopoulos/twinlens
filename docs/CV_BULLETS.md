@@ -16,6 +16,8 @@ Live demo: spiliosdimakopoulos.github.io/twinlens · Code: github.com/SpiliosDim
 - Proposed and validated a fix that keeps graphs linear: restoring both Jacobians raises ρ from
   0.20 to 0.53 (matching the nonlinear model), cuts catastrophic misses from 2.2% to 0.05%, and
   lifts IOI from 0.01 to 0.59 — and replicated it on Qwen3-0.6B (different architecture).
+- Upstreamed the fix to the open-source circuit-tracer library as opt-in exact-gradient
+  attribution flags (TransformerLens + nnsight backends, finite-difference tests): PR #123.
 - Designed a trust model that predicts, before running the real model, whether an explanation
   will hold: AUROC 0.93 on held-out prompts and on held-out task families.
 - Wrote a hookable GPT-2 from scratch with memory-mapped weights (<1 GB RAM on a laptop CPU).
@@ -39,6 +41,8 @@ Live demo: spiliosdimakopoulos.github.io/twinlens · Κώδικας: github.com/
 - Πρότεινα και επαλήθευσα διόρθωση που κρατά τα graphs γραμμικά: με τις δύο Jacobians το ρ
   ανεβαίνει από 0,20 σε 0,53 (όσο και το μη γραμμικό μοντέλο), οι καταστροφικές αστοχίες
   πέφτουν από 2,2% σε 0,05%, και στο IOI από 0,01 σε 0,59 — και την επιβεβαίωσα και στο Qwen3-0.6B, διαφορετική αρχιτεκτονική.
+- Συνεισέφερα τη διόρθωση στη βιβλιοθήκη ανοιχτού κώδικα circuit-tracer ως προαιρετικά flags
+  ακριβών gradients (TransformerLens + nnsight, με finite-difference tests): PR #123.
 - Σχεδίασα trust model που προβλέπει, πριν τρέξει το πραγματικό μοντέλο, αν μια εξήγηση θα
   ισχύσει: AUROC 0,93 σε prompts και σε κατηγορίες εργασιών που δεν είχε δει.
 - Υλοποίησα από το μηδέν GPT-2 με hooks και memory-mapped βάρη (<1 GB RAM σε CPU laptop). Αναπαράγει

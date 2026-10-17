@@ -40,6 +40,7 @@ From 8,064 interventions on GPT-2 small; full write-up in [`paper/REPORT.md`](pa
 | **The cause is two dropped derivatives** | frozen LayerNorm causes **88%** of the error and nearly all catastrophic misses; frozen attention causes the ranking errors |
 | **The fix keeps the graph linear** | restoring the LayerNorm and attention-pattern Jacobians gives a still-linear graph that matches the nonlinear twin: ρ **0.20 → 0.53**, sign agreement **67% → 86%**, catastrophic misses **2.2% → 0.05%**, IOI **0.01 → 0.59**; replicates on **Qwen3-0.6B** (different architecture): paired Δρ **+0.12**, catastrophic misses **3.0% → 0.8%** |
 | **The twin knows when it is wrong** | a trust model predicts, from the clean run alone, when a graph prediction will fail: AUROC **0.93** on held-out prompts *and* on held-out task families; on the edges users inspect it lifts graph accuracy from 54% to 71% |
+| **Upstreamed** | the fix is submitted to the open-source [circuit-tracer](https://github.com/decoderesearch/circuit-tracer) as opt-in `freeze_attention` / `freeze_layernorm` flags on `attribute()`, with finite-difference correctness tests: [PR #123](https://github.com/decoderesearch/circuit-tracer/pull/123) |
 
 <p>
   <img src="experiments/figures/F5_fix.png" width="100%" alt="Keeping two derivatives makes the linear graph as faithful as the nonlinear twin">

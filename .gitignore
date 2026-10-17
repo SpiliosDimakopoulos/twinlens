@@ -17,3 +17,4 @@ spike/server.log
 spike/pytest.log
 experiments/results/raw_ext_*/
 web/e2e-static/screens/
+upstream/

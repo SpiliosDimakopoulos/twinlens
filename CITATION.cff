@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this software or its results, please cite it as below."
+type: software
+title: "TwinLens: an interpretability digital twin for LLMs"
+abstract: >-
+  TwinLens builds a digital twin of a language model's internals from transcoders,
+  predicts the effect of feature interventions, and verifies each prediction against
+  the real model. It shows that attribution graphs predict interventions poorly
+  because they drop two derivatives (LayerNorm scale and attention pattern), and that
+  restoring them keeps the graph linear while matching the nonlinear replacement model.
+authors:
+  - family-names: Dimakopoulos
+    given-names: Spilios
+    alias: SpiliosDimakopoulos
+version: 1.0.0
+date-released: 2026-10-17
+license: MIT
+repository-code: "https://github.com/SpiliosDimakopoulos/twinlens"
+url: "https://spiliosdimakopoulos.github.io/twinlens/"
+keywords:
+  - interpretability
+  - attribution graphs
+  - transcoders
+  - circuit tracing
+  - language models

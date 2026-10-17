@@ -1,0 +1,29 @@
+{
+  "title": "TwinLens: an interpretability digital twin for LLMs",
+  "description": "TwinLens builds a transcoder-based digital twin of a language model, predicts the effect of feature interventions, and checks each prediction against the real model. Across 8,064 interventions on GPT-2 small (56 prompts), the linear twin that attribution graphs describe ranks real effects poorly (Spearman rho 0.20). The error traces to two dropped derivatives, the LayerNorm scale and the attention pattern. Restoring both keeps the graph exactly linear and raises rho to 0.53, matching the nonlinear replacement model (0.52), and cuts catastrophic misses from 2.2% to 0.05%. The fix replicates on Qwen3-0.6B (2,304 edits). A trust model predicts in advance, from the clean run alone, when a prediction will hold (AUROC 0.93).",
+  "creators": [
+    {"name": "Dimakopoulos, Spilios"}
+  ],
+  "upload_type": "publication",
+  "publication_type": "preprint",
+  "access_right": "open",
+  "license": "MIT",
+  "version": "1.0.0",
+  "publication_date": "2026-10-17",
+  "keywords": [
+    "interpretability",
+    "mechanistic interpretability",
+    "attribution graphs",
+    "transcoders",
+    "circuit tracing",
+    "LayerNorm",
+    "GPT-2",
+    "Qwen3"
+  ],
+  "related_identifiers": [
+    {"identifier": "https://github.com/SpiliosDimakopoulos/twinlens", "relation": "isSupplementedBy", "scheme": "url"},
+    {"identifier": "https://spiliosdimakopoulos.github.io/twinlens/", "relation": "isDocumentedBy", "scheme": "url"},
+    {"identifier": "https://spiliosdimakopoulos.github.io/twinlens/report/", "relation": "isDescribedBy", "scheme": "url"},
+    {"identifier": "https://github.com/decoderesearch/circuit-tracer/pull/123", "relation": "isReferencedBy", "scheme": "url"}
+  ]
+}
