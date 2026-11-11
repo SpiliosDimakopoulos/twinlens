@@ -1,22 +1,28 @@
 version: 2
+# One grouped PR per ecosystem per month. Major versions are left out: they need a human look
+# (a new TypeScript, Python or Node major can break the build), so they are upgraded by hand.
 updates:
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
     groups:
-      actions: { update-types: [minor, patch] }
+      actions: { patterns: ["*"] }
   - package-ecosystem: pip
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
+    ignore:
+      - { dependency-name: "*", update-types: ["version-update:semver-major"] }
     groups:
-      python: { update-types: [minor, patch] }
+      python: { patterns: ["*"] }
   - package-ecosystem: npm
     directory: /web
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
+    ignore:
+      - { dependency-name: "*", update-types: ["version-update:semver-major"] }
     groups:
-      npm: { update-types: [minor, patch] }
+      npm: { patterns: ["*"] }
   - package-ecosystem: docker
     directory: /
-    schedule: { interval: weekly }
-    groups:
-      docker: { update-types: [minor, patch] }
+    schedule: { interval: monthly }
+    ignore:
+      - { dependency-name: "*", update-types: ["version-update:semver-major", "version-update:semver-minor"] }
