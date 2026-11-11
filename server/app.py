@@ -53,7 +53,7 @@ DEV_ORIGIN = "http://localhost:5173"  # Vite dev server
 CORS_ORIGINS = [DEV_ORIGIN]
 WS_ORIGINS = {DEV_ORIGIN, "http://localhost:8000", "http://127.0.0.1:8000"}
 
-app = FastAPI(title="TwinLens", version="1.0.0")
+app = FastAPI(title="TwinLens", version="1.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
