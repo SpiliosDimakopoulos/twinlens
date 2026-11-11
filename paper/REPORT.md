@@ -15,7 +15,7 @@ with per-layer transcoders, we make 8,064 feature interventions (ablate or ampli
 prompts in 8 task families. We predict each intervention's effect with a ladder of twins, each
 unfreezing one more component of the real model, and then measure it on the real model.
 
-Four findings:
+Five findings:
 
 1. **The linear twin that attribution graphs describe is a weak counterfactual predictor.** Its
    rank correlation with the real effect is ρ = 0.20 [0.14, 0.25]. On edits that measurably move
@@ -156,7 +156,7 @@ between consecutive levels attribute the twin's error to its sources.
 Each feature is both ablated and amplified. BOS is excluded. The 56 prompts span 8 families:
 factual recall, IOI, induction/copying, syntax, code, sequences (named `arithmetic` in the
 data), narrative and sentiment
-(`experiments/prompts.json`). That gives 8,064 edits × 6 models.
+(`experiments/prompts.json`). That gives 8,064 edits, each predicted by five twin levels and two fixes and measured on the real model.
 
 **Metrics.**
 - Spearman ρ between predicted and real Δlog p.
@@ -302,7 +302,7 @@ the softmax turns that into
 
     dp = p₀ ⊙ (ds − Σₖ p₀ ds).
 
-The head output z = p·v then becomes z = p₀v + p₀·dv + dp·v₀. We drop the product of the two
+The head output z = p·v then becomes z = p₀v₀ + p₀·dv + dp·v₀. We drop the product of the two
 changes (dp·dv), which is second-order.
 
 Adding both terms keeps the model linear: Fix B is affine in the perturbation (tested), and it
@@ -377,9 +377,9 @@ live-norm/live-attention twin to within 5% on a 1% edit.
 
 | Level | ρ [95% CI] | sign agree | within tol (big) | catastrophic | mean err |
 |---|---|---|---|---|---|
-| Graph today | 0.34 [0.22, 0.42] | 78.5% | 51.5% | 3.0% | 0.138 |
-| Fix A | 0.42 [0.32, 0.50] | 85.6% | 58.6% | 1.4% | 0.083 |
-| Fix B | 0.45 [0.36, 0.54] | 87.7% | 62.0% | 0.8% | 0.070 |
+| Graph today | 0.33 [0.23, 0.43] | 78.5% | 51.5% | 3.0% | 0.138 |
+| Fix A | 0.42 [0.33, 0.50] | 85.6% | 58.6% | 1.4% | 0.083 |
+| Fix B | 0.45 [0.36, 0.53] | 87.7% | 62.0% | 0.8% | 0.070 |
 
 On induction prompts ρ rises from 0.04 to 0.28.
 
