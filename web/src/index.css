@@ -22,7 +22,7 @@
   --surface-2: #ffffff;
   --text-primary: #141311;
   --text-secondary: #4f4c45;
-  --text-muted: #85817a;
+  --text-muted: #6b675f; /* 5:1 on the page and surfaces (WCAG AA for small text) */
   --gridline: #e6e3db;
   --baseline: #c6c1b5;
   --rule: #d9d5ca;
@@ -178,6 +178,23 @@ body {
     white-space: pre;
     font-family: "IBM Plex Mono", ui-monospace, monospace;
   }
+
+  /* Empty track behind a bar, whisker or meter */
+  .track {
+    background: var(--gridline);
+  }
+
+  /* Hairline outline for ghost controls and fields */
+  .ring-baseline {
+    box-shadow: inset 0 0 0 1px var(--baseline);
+  }
+
+  /* Error message: plate surface with a critical bar on the left */
+  .note-error {
+    box-shadow: inset 3px 0 0 var(--critical);
+    background: var(--surface-1);
+    color: var(--text-primary);
+  }
 }
 
 kbd {
@@ -201,6 +218,10 @@ a {
 }
 svg g[role="button"]:focus-visible {
   outline: none; /* the node draws its own ring on focus */
+}
+.heat-cell:focus-visible rect:first-child {
+  stroke: var(--series-1);
+  stroke-width: 3;
 }
 
 @media (prefers-reduced-motion: reduce) {

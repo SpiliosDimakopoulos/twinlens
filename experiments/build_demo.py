@@ -12,20 +12,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import time
-from pathlib import Path
 
 import torch
+from common import ROOT
+from fastapi.testclient import TestClient
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from fastapi.testclient import TestClient  # noqa: E402
-
-from server import app as server  # noqa: E402
-from twinlens.causal.interventions import HeadAblation, build_hooks  # noqa: E402
-from twinlens.twin.replacement import FeatureEdit  # noqa: E402
+from server import app as server
+from twinlens.causal.interventions import HeadAblation, build_hooks
+from twinlens.twin.replacement import FeatureEdit
 
 OUT = ROOT / "web" / "public" / "demo"
 PRESETS = [0.0, 0.5, 2.0, 3.0]

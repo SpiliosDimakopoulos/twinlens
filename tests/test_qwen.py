@@ -8,6 +8,10 @@ import torch
 
 pytestmark = pytest.mark.qwen
 
+# looser than GPT-2: the float32 round trip through the hooks spans 28 layers instead of 12
+CLEAN_TOL = {"atol": 5e-3, "rtol": 1e-4}
+AFFINE_TOL = {"atol": 5e-3, "rtol": 1e-3}
+
 
 @pytest.fixture(scope="module")
 def qwen():
@@ -52,7 +56,18 @@ def test_matches_huggingface(qwen):
 @pytest.mark.parametrize("mode", ["direct", "linear", "linear_lnjac", "linear_fulljac", "real"])
 def test_levels_reproduce_clean_run(twin, trace, mode):
     out = twin.run(trace, mode, [None])
-    torch.testing.assert_close(out[0], trace.logits[-1], atol=5e-3, rtol=1e-4)
+    torch.testing.assert_close(out[0], trace.logits[-1], **CLEAN_TOL)
+
+
+@pytest.mark.parametrize("mode", ["direct", "linear", "linear_fulljac", "replacement", "real"])
+def test_noop_edit_reproduces_clean_run(twin, trace, mode):
+    """An edit to a feature's own clean value installs every twin hook from that layer on,
+    so this (unlike edits=[None]) checks that transcoder + error term is exact."""
+    from twinlens.twin.replacement import FeatureEdit
+
+    pos, f, a = _strong(trace, 12)
+    out = twin.run(trace, mode, [FeatureEdit(12, pos, f, a)])
+    torch.testing.assert_close(out[0], trace.logits[-1], **CLEAN_TOL)
 
 
 @pytest.mark.parametrize("mode", ["linear", "linear_lnjac", "linear_fulljac"])
@@ -64,7 +79,7 @@ def test_linear_levels_are_affine(twin, trace, mode):
     full, half = twin.run(
         trace, mode, [FeatureEdit(16, pos, f, 0.0), FeatureEdit(16, pos, f, a / 2)]
     )
-    torch.testing.assert_close(full - clean, 2 * (half - clean), atol=5e-3, rtol=1e-3)
+    torch.testing.assert_close(full - clean, 2 * (half - clean), **AFFINE_TOL)
 
 
 def test_fulljac_is_first_order_expansion_of_live_norms_and_attention(twin, trace):

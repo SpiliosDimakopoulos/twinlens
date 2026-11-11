@@ -1,6 +1,19 @@
-PY := .venv/Scripts/python
+# The venv's python on Windows or POSIX; override with `make PY=python3 ...`.
+PY ?= $(firstword $(wildcard .venv/Scripts/python.exe .venv/bin/python) python)
 
-.PHONY: test lint web-test build serve dev-api dev-web sweep sweep-small analyze bench e2e demo report e2e-static
+.PHONY: help install fmt test test-slow lint web-test build serve dev-api dev-web sweep sweep-small analyze bench e2e demo report e2e-static
+
+help:            ## list targets
+	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s
+", $$1, $$2}'
+
+install:         ## dev install (CPU torch, then the package with dev + server extras, then web deps)
+	$(PY) -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+	$(PY) -m pip install -e ".[dev]"
+	cd web && npm ci
+
+fmt:             ## format Python with ruff (not enforced in CI yet)
+	$(PY) -m ruff format twinlens server tests experiments
 
 test:            ## Python unit, reproduction, twin and API tests
 	$(PY) -m pytest -q
@@ -8,8 +21,9 @@ test:            ## Python unit, reproduction, twin and API tests
 test-slow:       ## also the HF-parity test (needs ~1 GB extra RAM)
 	$(PY) -m pytest -q -m slow
 
-lint:
+lint:            ## ruff + eslint + tsc, as in CI
 	$(PY) -m ruff check twinlens server tests experiments
+	cd web && npx tsc -b && npx eslint src
 
 web-test:
 	cd web && npx tsc -b && npm test
@@ -32,8 +46,10 @@ sweep:           ## full fidelity sweep (resumable, ~30-40 min on a laptop CPU)
 sweep-small:     ## 1 prompt per family (~4 min)
 	$(PY) experiments/fidelity_sweep.py --small
 
-analyze:
+analyze:         ## every number in the report, from the committed sweep data
 	$(PY) experiments/analyze.py
+	$(PY) experiments/analyze_generalization.py
+	$(if $(wildcard experiments/results/fidelity_atp.parquet),$(PY) experiments/analyze_atp.py,@echo "analyze_atp.py skipped: run experiments/atp_baseline.py first")
 
 bench:
 	$(PY) bench/latency.py

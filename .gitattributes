@@ -1,3 +1,10 @@
 * text=auto eol=lf
+*.sh text eol=lf
 *.png binary
 *.gif binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+*.pdf binary
+*.parquet binary
+*.npz binary

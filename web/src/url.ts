@@ -1,4 +1,5 @@
-/** Tiny URL-state helpers so any view of the dashboard can be shared as a link. */
+/** Tiny URL-state helpers so any view of the dashboard can be shared as a link. Both fail
+ * silently where location/history are unavailable (sandboxed or file:// contexts). */
 
 export function readParam(name: string): string | null {
   try {
@@ -20,10 +21,4 @@ export function writeParams(values: Record<string, string | number | null | unde
   } catch {
     /* sandboxed or file:// contexts: sharing links just won't update */
   }
-}
-
-/** True when the keyboard event comes from a text field (shortcuts should not fire). */
-export function typing(e: KeyboardEvent): boolean {
-  const t = e.target as HTMLElement | null;
-  return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
 }

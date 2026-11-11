@@ -2,8 +2,15 @@
 
 import pytest
 import torch
+from conftest import PROMPT
 
 from twinlens.twin.replacement import FIX_LEVELS, TWIN_LEVELS, FeatureEdit, Twin
+
+# float32 round trip through the hooks (error terms, sparse decode) vs the plain forward pass
+CLEAN_TOL = {"atol": 2e-3, "rtol": 1e-4}
+# compares the deltas of two edited runs, so the round-trip error enters on both sides
+AFFINE_TOL = {"atol": 2e-3, "rtol": 1e-3}
+ALL_MODES = [*TWIN_LEVELS, *FIX_LEVELS, "real"]
 
 
 @pytest.fixture(scope="module")
@@ -13,7 +20,7 @@ def twin(model):
 
 @pytest.fixture(scope="module")
 def trace(twin):
-    return twin.trace(twin.model.to_tokens("The Colosseum is located in the city of"))
+    return twin.trace(twin.model.to_tokens(PROMPT))
 
 
 def _strong_feature(trace, layer):
@@ -22,17 +29,17 @@ def _strong_feature(trace, layer):
     return pos, f, trace.acts[layer][pos, f].item()
 
 
-@pytest.mark.parametrize("mode", [*TWIN_LEVELS, *FIX_LEVELS, "real"])
+@pytest.mark.parametrize("mode", ALL_MODES)
 def test_all_levels_reproduce_clean_run(twin, trace, mode):
     out = twin.run(trace, mode, [None])
-    torch.testing.assert_close(out[0], trace.logits[-1], atol=2e-3, rtol=1e-4)
+    torch.testing.assert_close(out[0], trace.logits[-1], **CLEAN_TOL)
 
 
-def test_noop_edit_is_exact(twin, trace):
+@pytest.mark.parametrize("mode", ALL_MODES)
+def test_noop_edit_is_exact(twin, trace, mode):
     pos, f, a = _strong_feature(trace, 6)
-    for mode in [*TWIN_LEVELS, *FIX_LEVELS, "real"]:
-        out = twin.run(trace, mode, [FeatureEdit(6, pos, f, a)])
-        torch.testing.assert_close(out[0], trace.logits[-1], atol=2e-3, rtol=1e-4)
+    out = twin.run(trace, mode, [FeatureEdit(6, pos, f, a)])
+    torch.testing.assert_close(out[0], trace.logits[-1], **CLEAN_TOL)
 
 
 def test_linear_twin_is_affine(twin, trace):
@@ -41,7 +48,7 @@ def test_linear_twin_is_affine(twin, trace):
     full, half = twin.run(
         trace, "linear", [FeatureEdit(4, pos, f, 0.0), FeatureEdit(4, pos, f, a / 2)]
     )
-    torch.testing.assert_close(full - clean, 2 * (half - clean), atol=2e-3, rtol=1e-3)
+    torch.testing.assert_close(full - clean, 2 * (half - clean), **AFFINE_TOL)
 
 
 def test_batched_rows_are_independent(twin, trace):
@@ -50,7 +57,7 @@ def test_batched_rows_are_independent(twin, trace):
     both = twin.run(trace, "replacement", [e, None])
     single = twin.run(trace, "replacement", [e])
     torch.testing.assert_close(both[0], single[0], atol=1e-4, rtol=1e-5)
-    torch.testing.assert_close(both[1], trace.logits[-1], atol=2e-3, rtol=1e-4)
+    torch.testing.assert_close(both[1], trace.logits[-1], **CLEAN_TOL)
 
 
 def test_attribution_matches_direct_mode(twin, trace):
@@ -70,7 +77,7 @@ def test_lnjac_twin_is_affine(twin, trace):
     full, half = twin.run(
         trace, "linear_lnjac", [FeatureEdit(4, pos, f, 0.0), FeatureEdit(4, pos, f, a / 2)]
     )
-    torch.testing.assert_close(full - clean, 2 * (half - clean), atol=2e-3, rtol=1e-3)
+    torch.testing.assert_close(full - clean, 2 * (half - clean), **AFFINE_TOL)
 
 
 def test_lnjac_is_the_first_order_expansion_of_live_layernorm(twin, trace):
@@ -94,7 +101,7 @@ def test_fulljac_twin_is_affine(twin, trace):
     full, half = twin.run(
         trace, "linear_fulljac", [FeatureEdit(4, pos, f, 0.0), FeatureEdit(4, pos, f, a / 2)]
     )
-    torch.testing.assert_close(full - clean, 2 * (half - clean), atol=2e-3, rtol=1e-3)
+    torch.testing.assert_close(full - clean, 2 * (half - clean), **AFFINE_TOL)
 
 
 def test_fulljac_is_the_first_order_expansion_of_live_attention(twin, trace):

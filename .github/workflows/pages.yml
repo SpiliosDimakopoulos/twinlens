@@ -1,7 +1,10 @@
 name: pages
 # Static live demo: the dashboard built with precomputed payloads (web/public/demo), no server.
+# Deploys only after the ci workflow succeeded on main (tsc/vitest already ran there).
 on:
-  push:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 permissions:
@@ -13,12 +16,19 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults: { run: { working-directory: web } }
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
-        with: { node-version: "22" }
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npm run build:static
       - uses: actions/upload-pages-artifact@v3
@@ -26,6 +36,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

@@ -50,7 +50,7 @@ test("keyboard: nodes are focusable, arrows step features, brackets change speci
   await page.keyboard.press("ArrowRight");
   await expect(node).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("]");
-  await expect(page.getByRole("tab", { selected: true })).toContainText("Indirect object");
+  await expect(page.getByRole("group", { name: "Example prompts" }).getByRole("button", { pressed: true })).toContainText("Indirect object");
 });
 
 test("internals: logit lens, attention, click-to-ablate", async ({ page }) => {

@@ -23,6 +23,13 @@ BASE = "#c3c2b7"
 LADDER = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"]  # ordinal blue 250..650
 CAT = ["#2a78d6", "#eb6834", "#1baf7a"]  # categorical slots 1-3
 
+# Font sizes (points). Body text and axes titles come from rcParams below.
+FS_SUPTITLE = 12  # figure headline
+FS_NOTE = 9  # subtitle / legend text
+FS_LABEL = 8.5  # value labels on bars and points, small legends
+FS_TICK = 8  # category tick labels
+FS_TICK_DENSE = 7.5  # tick labels in the 4-panel fix figure
+
 plt.rcParams.update(
     {
         "font.family": ["Segoe UI", "DejaVu Sans", "sans-serif"],
@@ -51,6 +58,18 @@ plt.rcParams.update(
         "svg.hashsalt": "twinlens",  # stable element ids -> reproducible SVGs
     }
 )
+
+
+def _fmt(v: float, pct: bool, *, signed: bool = False, fine: bool = False) -> str:
+    """Value label: ``0.42`` or, for shares, ``4.2%`` below 10% and ``42%`` above; ``fine`` adds
+    a ``0.42%`` step below 1%, ``signed`` prints the sign and sizes by ``|v|``."""
+    sign = "+" if signed else ""
+    if not pct:
+        return f"{v:{sign}.2f}"
+    a = abs(v) if signed else v
+    if fine and a < 0.01:
+        return f"{v:{sign}.2%}"
+    return f"{v:{sign}.1%}" if a < 0.1 else f"{v:{sign}.0%}"
 
 
 def _save(fig, out: Path, name: str) -> None:
@@ -87,14 +106,14 @@ def ladder_figure(summary: dict, out: Path) -> None:
             ax.text(
                 xi,
                 v[2],
-                (f"{p:.1%}" if p < 0.1 else f"{p:.0%}") if pct else f"{p:.2f}",
+                _fmt(p, pct),
                 ha="center",
                 va="bottom",
-                fontsize=8.5,
+                fontsize=FS_LABEL,
                 color=INK2,
             )
         ax.set_title(title)
-        ax.set_xticks(list(x), labels, fontsize=8)
+        ax.set_xticks(list(x), labels, fontsize=FS_TICK)
         ax.tick_params(axis="x", length=0)
         if pct:
             ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0, decimals=0))
@@ -103,7 +122,7 @@ def ladder_figure(summary: dict, out: Path) -> None:
         "Each step up the twin ladder unfreezes one component of the real model",
         x=0.01,
         ha="left",
-        fontsize=12,
+        fontsize=FS_SUPTITLE,
         fontweight="bold",
         color=INK,
     )
@@ -112,7 +131,7 @@ def ladder_figure(summary: dict, out: Path) -> None:
         0.935,
         f"{summary['n_edits']:,} feature edits on {summary['n_prompts']} prompts · "
         "error bars: 95% cluster bootstrap over prompts",
-        fontsize=9,
+        fontsize=FS_NOTE,
         color=INK2,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.92))
@@ -142,7 +161,7 @@ def decay_figure(summary: dict, out: Path) -> None:
     for i in range(1, len(ends)):
         ends[i][0] = max(ends[i][0], ends[i - 1][0] + 0.035)
     for y, label in ends:
-        ax.text(len(bins) - 1 + 0.08, y, label, va="center", fontsize=8.5, color=INK2)
+        ax.text(len(bins) - 1 + 0.08, y, label, va="center", fontsize=FS_LABEL, color=INK2)
     ax.set_xticks(range(len(bins)), bins)
     ax.set_xlim(-0.2, len(bins) + 0.9)
     ax.set_xlabel("Layers between the edited feature and the output")
@@ -170,7 +189,7 @@ def decomposition_figure(summary: dict, out: Path) -> None:
             edgecolor=SURFACE,
             linewidth=2,
             height=0.5,
-            label=f"{name}  {v:.1%}" if v < 0.1 else f"{name}  {v:.0%}",
+            label=f"{name}  {_fmt(v, pct=True)}",
         )
         left += w
     ax.set_xlim(0, max(left, 1.0))
@@ -179,7 +198,7 @@ def decomposition_figure(summary: dict, out: Path) -> None:
         loc="upper center",
         bbox_to_anchor=(0.5, -0.05),
         ncol=3,
-        fontsize=9,
+        fontsize=FS_NOTE,
         handlelength=1,
         handleheight=1,
         labelcolor=INK2,
@@ -217,11 +236,11 @@ def trust_figure(summary: dict, out: Path) -> None:
         zorder=2,
     )
     for yi, r in zip(y, rows, strict=True):
-        ax.text(r[1] + 0.005, yi, f"{r[1]:.3f}", va="center", fontsize=8.5, color=INK2)
-    ax.set_yticks(list(y), [r[0] for r in rows], fontsize=8.5)
+        ax.text(r[1] + 0.005, yi, f"{r[1]:.3f}", va="center", fontsize=FS_LABEL, color=INK2)
+    ax.set_yticks(list(y), [r[0] for r in rows], fontsize=FS_LABEL)
     ax.set_xlim(0.45, 1.0)
     ax.axvline(0.5, color=MUTED, linewidth=1, linestyle=(0, (3, 3)))
-    ax.text(0.505, -0.9, "chance", fontsize=8, color=MUTED)
+    ax.text(0.505, -0.9, "chance", fontsize=FS_TICK, color=MUTED)
     ax.grid(axis="x"), ax.grid(axis="y", visible=False)
     ax.set_xlabel("AUROC for 'the graph twin's prediction is right'")
     ax.set_title("Can the twin tell when it is wrong?")
@@ -301,13 +320,10 @@ def fix_figure(summary: dict, out: Path) -> None:
             )
         ax.errorbar(x, pts, yerr=err, fmt="none", ecolor=INK2, elinewidth=1, capsize=3, zorder=3)
         for xi, p, v in zip(x, pts, vals, strict=True):
-            if pct:
-                txt = f"{p:.2%}" if p < 0.01 else f"{p:.1%}" if p < 0.1 else f"{p:.0%}"
-            else:
-                txt = f"{p:.2f}"
-            ax.text(xi, v[2], txt, ha="center", va="bottom", fontsize=8.5, color=INK2)
+            txt = _fmt(p, pct, fine=True)
+            ax.text(xi, v[2], txt, ha="center", va="bottom", fontsize=FS_LABEL, color=INK2)
         ax.set_title(title, fontsize=10)
-        ax.set_xticks(x, [labels[lv] for lv in levels], fontsize=7.5)
+        ax.set_xticks(x, [labels[lv] for lv in levels], fontsize=FS_TICK_DENSE)
         ax.tick_params(axis="x", length=0)
         if pct:
             dec = 1 if max(pts) < 0.05 else 0
@@ -317,7 +333,7 @@ def fix_figure(summary: dict, out: Path) -> None:
         "Keeping two derivatives makes the linear graph as faithful as the nonlinear twin",
         x=0.01,
         ha="left",
-        fontsize=12,
+        fontsize=FS_SUPTITLE,
         fontweight="bold",
         color=INK,
     )
@@ -365,7 +381,7 @@ def family_figure(summary: dict, out: Path) -> None:
             label="Nonlinear twin",
         ),
     ]
-    ax.legend(handles=handles, loc="upper left", fontsize=8.5, labelcolor=INK2)
+    ax.legend(handles=handles, loc="upper left", fontsize=FS_LABEL, labelcolor=INK2)
     _save(fig, out, "F6_families")
 
 
@@ -385,8 +401,8 @@ def generalization_figure(gen: dict, out: Path) -> None:
             v, lo, hi = gen[m]["paired_diff"][key]
             ax.plot([lo, hi], [i, i], color=c, linewidth=2, solid_capstyle="round")
             ax.scatter([v], [i], s=55, color=c, edgecolor=SURFACE, linewidth=1.5, zorder=3)
-            txt = (f"{v:+.1%}" if abs(v) < 0.1 else f"{v:+.0%}") if pct else f"{v:+.2f}"
-            ax.text(hi, i + 0.22, txt, fontsize=8.5, color=INK2, ha="right")
+            txt = _fmt(v, pct, signed=True)
+            ax.text(hi, i + 0.22, txt, fontsize=FS_LABEL, color=INK2, ha="right")
         ax.axvline(0, color=MUTED, linewidth=1, linestyle=(0, (3, 3)))
         ax.set_yticks(
             range(len(models)),

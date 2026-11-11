@@ -38,7 +38,7 @@ class HeadAblation(BaseModel):
             if self.mode == "mean":
                 if mean_cache is None or name not in mean_cache:
                     raise ValueError("mean ablation needs a mean_cache with hook_z")
-                ref = mean_cache[name][..., self.head, :].expand_as(z[:, pos, self.head])
+                ref = mean_cache[name][:, pos, self.head].expand_as(z[:, pos, self.head])
             z[:, pos, self.head] = ref + self.scale * (z[:, pos, self.head] - ref)
             return z
 

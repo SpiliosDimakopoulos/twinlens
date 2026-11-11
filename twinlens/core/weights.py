@@ -26,8 +26,16 @@ _DTYPES = {
     "BOOL": np.bool_,
 }
 
+_ROOT = Path(__file__).resolve().parents[2]
+# A pip install puts the package in site-packages (possibly read-only, and a bad home for 2.3 GB),
+# so only a source checkout keeps the repo-root cache that CI caches.
 CACHE_DIR = Path(
-    os.environ.get("TWINLENS_CACHE", Path(__file__).resolve().parents[2] / ".hf_cache")
+    os.environ.get("TWINLENS_CACHE")
+    or (
+        _ROOT / ".hf_cache"
+        if (_ROOT / "pyproject.toml").exists()
+        else Path.home() / ".cache" / "twinlens"
+    )
 )
 
 

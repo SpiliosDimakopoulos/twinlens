@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
+from common import FIGS, ROOT
 from PIL import Image, ImageDraw, ImageFont
 
-ROOT = Path(__file__).resolve().parents[1]
 FONTS = Path("C:/Windows/Fonts")
 
 
@@ -33,7 +33,7 @@ def main() -> None:
         font=font("arial.ttf", 27),
         fill="#3a3f47",
     )
-    fig = Image.open(ROOT / "experiments/figures/F5_fix.png").convert("RGB")
+    fig = Image.open(FIGS / "F5_fix.png").convert("RGB")
     fw = w - 120
     fig = fig.resize((fw, int(fig.height * fw / fig.width)), Image.LANCZOS)
     card.paste(fig, (60, 230))

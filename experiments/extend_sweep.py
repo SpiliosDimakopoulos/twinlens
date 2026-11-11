@@ -13,21 +13,30 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import time
 from pathlib import Path
 
 import pandas as pd
 import torch
+from common import EDIT_KEY, RESULTS, ROOT, check_edit_keys, write_parquet
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+from twinlens.core.gpt2 import GPT2
+from twinlens.fidelity.engine import _effect_metrics, sample_edits
+from twinlens.twin.replacement import Twin
 
-from twinlens.core.gpt2 import GPT2  # noqa: E402
-from twinlens.fidelity.engine import _effect_metrics, sample_edits  # noqa: E402
-from twinlens.twin.replacement import Twin  # noqa: E402
+KEY = list(EDIT_KEY)
 
-RESULTS = ROOT / "experiments" / "results"
+
+def load_ext(path: Path) -> pd.DataFrame:
+    """One prompt's new columns, with the edit key (taken from the stored sweep for files
+    written before the key was saved alongside)."""
+    ext = pd.read_parquet(path).reset_index(drop=True)
+    if not set(KEY) <= set(ext.columns):
+        keys = pd.read_parquet(RESULTS / "raw" / path.name, columns=KEY).reset_index(drop=True)
+        if len(keys) != len(ext):
+            raise ValueError(f"{path}: {len(ext)} rows but the stored sweep has {len(keys)}")
+        ext = pd.concat([keys, ext], axis=1)
+    return ext
 
 
 def main() -> None:
@@ -80,7 +89,8 @@ def main() -> None:
         rel = float((diff / (old.linear_dlogp.abs().reset_index(drop=True) + 1e-2)).max())
         worst_regression = max(worst_regression, rel)
         new = pd.DataFrame({k: v for k, v in cols.items() if k.rsplit("_", 1)[0] in args.modes})
-        new.to_parquet(path)
+        new = pd.concat([old[KEY].reset_index(drop=True), new], axis=1)
+        write_parquet(new, path)
         print(
             f"[{i + 1}/{len(prompts)}] {time.perf_counter() - t:.0f}s  "
             f"linear regression (max rel) {rel:.1e}",
@@ -88,13 +98,14 @@ def main() -> None:
         )
 
     base = pd.read_parquet(RESULTS / "fidelity.parquet")
-    ext = pd.concat([pd.read_parquet(p) for p in sorted(out.glob("*.parquet"))], ignore_index=True)
-    assert len(ext) == len(base)
-    for c in ext.columns:
+    ext = pd.concat([load_ext(p) for p in sorted(out.glob("*.parquet"))], ignore_index=True)
+    check_edit_keys(base, ext, f"{out.name} vs fidelity.parquet")  # positional merge below
+    added = [c for c in ext.columns if c not in KEY]
+    for c in added:
         base[c] = ext[c].to_numpy()
-    base.to_parquet(RESULTS / "fidelity.parquet")
+    write_parquet(base, RESULTS / "fidelity.parquet")
     print(
-        f"added {list(ext.columns)} to fidelity.parquet; "
+        f"added {added} to fidelity.parquet; "
         f"worst linear regression {worst_regression:.1e}"
     )
 

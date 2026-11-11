@@ -12,18 +12,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import time
 from pathlib import Path
 
 import pandas as pd
+from common import RESULTS, ROOT, write_parquet
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from twinlens.core.gpt2 import GPT2  # noqa: E402
-from twinlens.fidelity.engine import run_prompt  # noqa: E402
-from twinlens.twin.replacement import TWIN_LEVELS, Twin  # noqa: E402
+from twinlens.core.gpt2 import GPT2
+from twinlens.fidelity.engine import run_prompt
+from twinlens.twin.replacement import TWIN_LEVELS, Twin
 
 
 def main() -> None:
@@ -39,7 +36,7 @@ def main() -> None:
     )
     ap.add_argument("--model", choices=["gpt2", "qwen3"], default="gpt2")
     ap.add_argument("--per-family", type=int, default=0, help="prompts per family (0 = all)")
-    ap.add_argument("--out", default=str(ROOT / "experiments" / "results"))
+    ap.add_argument("--out", default=str(RESULTS))
     args = ap.parse_args()
 
     corpus = json.loads((ROOT / "experiments" / "prompts.json").read_text())
@@ -69,7 +66,7 @@ def main() -> None:
         rows = run_prompt(
             twin, text, cat, i, args.n_top, args.n_random, chunk=args.chunk, seed=i, modes=modes
         )
-        pd.DataFrame(rows).to_parquet(path)
+        write_parquet(pd.DataFrame(rows), path)  # atomic: a crash never leaves a partial file
         print(
             f"[{i + 1}/{len(prompts)}] {cat:10s} {len(rows)} edits "
             f"{time.perf_counter() - t:.0f}s  total {time.perf_counter() - t0:.0f}s",
@@ -78,7 +75,7 @@ def main() -> None:
 
     df = pd.concat([pd.read_parquet(p) for p in sorted(out.glob("*.parquet"))], ignore_index=True)
     name = ("fidelity_small" if args.small else "fidelity") + tag + ".parquet"
-    df.to_parquet(Path(args.out) / name)
+    write_parquet(df, Path(args.out) / name)
     print(f"wrote {len(df)} rows -> {Path(args.out) / name}")
 
 

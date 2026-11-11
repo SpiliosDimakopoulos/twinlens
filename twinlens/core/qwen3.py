@@ -76,7 +76,7 @@ class Qwen3(GPT2):
         self._hooks = defaultdict(list)
 
     @classmethod
-    def load(cls, name: str = "qwen3-0.6b") -> Qwen3:  # type: ignore[override]
+    def load(cls) -> Qwen3:  # type: ignore[override]
         src = hf_file(REPO, "model.safetensors")
         f32 = convert_to_f32(src, CACHE_DIR / "twinlens" / "qwen3-0.6b.f32.safetensors")
         return cls(MmapSafetensors(f32), QwenConfig(), Tokenizer(hf_file(REPO, "tokenizer.json")))
@@ -178,9 +178,3 @@ class Qwen3(GPT2):
 
     def to_tokens(self, text: str | list[str], prepend_bos: bool = False) -> torch.Tensor:
         return super().to_tokens(text, prepend_bos=prepend_bos)
-
-    def to_single_token(self, s: str) -> int:
-        ids = self.tokenizer.encode(s, prepend_bos=False)
-        if len(ids) != 1:
-            raise ValueError(f"{s!r} is {len(ids)} tokens")
-        return ids[0]

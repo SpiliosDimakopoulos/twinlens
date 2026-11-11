@@ -10,9 +10,15 @@ predicts ``hook_mlp_out``:
 
 from __future__ import annotations
 
+import json
+import struct
+import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import torch
 
 from twinlens.core.weights import CACHE_DIR, MmapSafetensors, hf_file
@@ -68,16 +74,14 @@ class TranscoderSet:
         return (self[layer] for layer in range(self.n_layers))
 
 
-def layernorm_pre(resid: torch.Tensor, scale: torch.Tensor | None = None, eps: float = 1e-5):
-    """Centre and scale like LayerNorm without the affine. ``scale`` can be frozen."""
-    x = resid - resid.mean(-1, keepdim=True)
-    if scale is None:
-        scale = (x.pow(2).mean(-1, keepdim=True) + eps).sqrt()
-    return x / scale
-
-
 # ---------------------------------------------------------------- Qwen3-0.6B
 QWEN_REPO = "mwhanna/qwen3-0.6b-transcoders-lowl0"  # circuit-tracer PLTs, 163,840 features/layer
+
+HTTP_ATTEMPTS = 8  # with exponential backoff: ~2 min before giving up
+HTTP_TIMEOUT = 60  # seconds
+RETRY_CODES = (429, 500, 502, 503, 504)  # rate limit and transient server errors
+DOWNLOAD_CHUNK = 32 << 20  # bytes per range request for whole-tensor downloads
+ENCODE_CHUNK = 16384  # features per matmul when streaming the BF16 encoder
 
 
 class RemoteRowTranscoder:
@@ -86,8 +90,6 @@ class RemoteRowTranscoder:
     Weights are BF16 on disk and converted to F32 only in the slices that are used."""
 
     def __init__(self, layer: int, cache_dir: Path | None = None):
-        import numpy as np
-
         self.layer = layer
         self.url = f"https://huggingface.co/{QWEN_REPO}/resolve/main/layer_{layer}.safetensors"
         self.dir = (cache_dir or CACHE_DIR / "twinlens" / "qwen-tc") / f"L{layer}"
@@ -108,29 +110,22 @@ class RemoteRowTranscoder:
 
     # -- remote access
     def _get(self, start: int, end: int) -> bytes:
-        import time
-        import urllib.error
-        import urllib.request
-
         req = urllib.request.Request(self.url, headers={"Range": f"bytes={start}-{end - 1}"})
-        for attempt in range(8):
+        for attempt in range(HTTP_ATTEMPTS - 1):
             try:
-                with urllib.request.urlopen(req, timeout=60) as r:
+                with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as r:
                     return r.read()
             except urllib.error.HTTPError as e:  # 429: back off as the Hub asks
-                if attempt == 7 or e.code not in (429, 500, 502, 503, 504):
+                if e.code not in RETRY_CODES:
                     raise
                 time.sleep(float(e.headers.get("Retry-After") or 2**attempt))
             except OSError:
-                if attempt == 7:
-                    raise
                 time.sleep(2**attempt)
-        raise RuntimeError("unreachable")
+        # Last attempt: let any error propagate.
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as r:
+            return r.read()
 
     def _header(self):
-        import json
-        import struct
-
         path = self.dir / "header.json"
         if path.exists():
             meta = json.loads(path.read_text())
@@ -145,7 +140,7 @@ class RemoteRowTranscoder:
         a, b = self.header[key]["data_offsets"]
         return self.data_start + a, self.data_start + b
 
-    def _download(self, key: str, dst: Path, chunk: int = 32 << 20) -> None:
+    def _download(self, key: str, dst: Path, chunk: int = DOWNLOAD_CHUNK) -> None:
         a, b = self._span(key)
         tmp = dst.with_suffix(".partial")
         with open(tmp, "wb") as f:
@@ -154,15 +149,13 @@ class RemoteRowTranscoder:
         tmp.replace(dst)
 
     def _small(self, key: str) -> torch.Tensor:
-        import numpy as np
-
         path = self.dir / f"{key}.bf16"
         if not path.exists():
             self._download(key, path)
         return torch.from_numpy(np.fromfile(path, dtype=np.uint16).copy()).view(torch.bfloat16)
 
     # -- the interface the twin uses
-    def pre(self, x: torch.Tensor, chunk: int = 16384) -> torch.Tensor:
+    def pre(self, x: torch.Tensor, chunk: int = ENCODE_CHUNK) -> torch.Tensor:
         """Full encoder pre-activations, streamed over feature chunks: [..., d_sae]."""
         outs = [x @ self._W_enc[i : i + chunk].float().T for i in range(0, self.d_sae, chunk)]
         return torch.cat(outs, -1) + self.b_enc
@@ -185,8 +178,6 @@ class RemoteRowTranscoder:
         torch.save(self._dec_cache, self.dir / "dec_rows.pt")
 
     def dec_rows(self, idx: torch.Tensor | list[int]) -> torch.Tensor:
-        import numpy as np
-
         ids = [int(i) for i in (idx.tolist() if isinstance(idx, torch.Tensor) else idx)]
         missing = sorted({i for i in ids if i not in self._dec_cache})
         if missing:

@@ -2,7 +2,8 @@
 
     python experiments/analyze.py [--small]
 
-Writes ``results/summary.json`` (consumed by the API/UI and the report),
+Updates its sections of ``results/summary.json`` (consumed by the API/UI and the report; the
+``generalization`` and ``atp_baseline`` sections written by the other scripts are kept), writes
 ``results/trust_model.json`` and figures under ``experiments/figures``.
 All uncertainty is a 95% cluster bootstrap over *prompts* (edits within a prompt are not
 independent).
@@ -11,27 +12,29 @@ independent).
 from __future__ import annotations
 
 import argparse
-import json
-import sys
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import torch
+from common import FIGS, RESULTS, ROOT, update_summary
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+from twinlens.fidelity.metrics import (
+    CLIP,
+    add_derived,
+    cluster_bootstrap,
+    level_metrics,
+    within_tol,
+)
+from twinlens.fidelity.signals import SIGNALS
+from twinlens.fidelity.trust import TrustModel, auroc, fit_logistic, transform
+from twinlens.twin.replacement import FIX_LEVELS, TWIN_LEVELS
 
-from twinlens.fidelity.signals import SIGNALS  # noqa: E402
-from twinlens.fidelity.trust import TrustModel, auroc, fit_logistic, transform  # noqa: E402
-from twinlens.twin.replacement import FIX_LEVELS, TWIN_LEVELS  # noqa: E402
-
-RESULTS = ROOT / "experiments" / "results"
-FIGS = ROOT / "experiments" / "figures"
 TRUST_LEVEL = "linear"  # the attribution-graph twin: what a graph's edges claim
-CLIP = 5.0  # nats; errors are clipped here before averaging so one blow-up can't dominate
 BOOT = 1000
-RNG = np.random.default_rng(0)
+SEED = 0  # one generator, shared in call order by the ladder/fix bootstraps and the CV folds
+CV_FOLDS = 5
+ROBUST_SEED = 1  # robustness() has its own generator, so it leaves every other interval as is
+ROBUST_BOOT = 300
 
 LEVEL_LABELS = {
     "direct": "Direct edges",
@@ -46,59 +49,21 @@ LEVEL_LABELS = {
 FIX_COMPARE = ["linear", "linear_lnjac", "linear_fulljac", "replacement_full"]
 
 
-# ------------------------------------------------------------------- metrics
-def add_derived(df: pd.DataFrame) -> pd.DataFrame:
-    for lv in [*TWIN_LEVELS, *(f for f in FIX_LEVELS if f"{f}_dlogp" in df)]:
-        err = (df[f"{lv}_dlogp"] - df.real_dlogp).abs()
-        df[f"{lv}_err"] = err
-        df[f"{lv}_ok"] = err <= 0.1 + 0.25 * df.real_dlogp.abs()
-        df[f"{lv}_catastrophic"] = err > 1.0
-    df["real_big"] = df.real_dlogp.abs() > 0.05
-    return df
-
-
-def level_metrics(d: pd.DataFrame, lv: str) -> dict[str, float]:
-    big = d[d.real_big]
-    return {
-        "spearman": d[[f"{lv}_dlogp", "real_dlogp"]].corr(method="spearman").iloc[0, 1],
-        "median_cos": d[f"{lv}_cos"].median(),
-        "sign_agree": ((big[f"{lv}_dlogp"] > 0) == (big.real_dlogp > 0)).mean(),
-        "spearman_big": big[[f"{lv}_dlogp", "real_dlogp"]].corr(method="spearman").iloc[0, 1],
-        "within_tol_big": big[f"{lv}_ok"].mean(),
-        "within_tol": d[f"{lv}_ok"].mean(),
-        "catastrophic": d[f"{lv}_catastrophic"].mean(),
-        "mean_err_clipped": d[f"{lv}_err"].clip(upper=CLIP).mean(),
-    }
-
-
-def bootstrap(df: pd.DataFrame, fn, n: int = BOOT) -> dict[str, list[float]]:
-    """Cluster bootstrap over prompts: returns {metric: [point, lo, hi]}."""
-    point = fn(df)
-    groups = {k: g for k, g in df.groupby("prompt_id")}
-    ids = list(groups)
-    samples = []
-    for _ in range(n):
-        pick = RNG.choice(ids, size=len(ids), replace=True)
-        samples.append(fn(pd.concat([groups[i] for i in pick], ignore_index=True)))
-    out = {}
-    for k, v in point.items():
-        vals = np.array([s[k] for s in samples], dtype=float)
-        out[k] = [float(v), float(np.nanpercentile(vals, 2.5)), float(np.nanpercentile(vals, 97.5))]
-    return out
-
-
 # ---------------------------------------------------------------- trust model
 def design(df: pd.DataFrame) -> torch.Tensor:
     cols = [[transform(s, v) for v in df[s]] for s in SIGNALS]
     return torch.tensor(np.array(cols, dtype=np.float32).T)
 
 
-def trust_analysis(df: pd.DataFrame, level: str, n_folds: int = 5) -> tuple[dict, TrustModel]:
-    """Grouped (by prompt) cross-validated AUROC of predicting ``{level}_ok`` from signals."""
+def trust_analysis(
+    df: pd.DataFrame, level: str, rng: np.random.Generator, n_folds: int = CV_FOLDS
+) -> tuple[dict, TrustModel]:
+    """Grouped (by prompt) cross-validated AUROC of predicting ``{level}_ok`` from signals.
+    ``rng`` shuffles the prompts into folds."""
     y = torch.tensor(df[f"{level}_ok"].to_numpy(), dtype=torch.float32)
     X = design(df)
     prompts = df.prompt_id.unique()
-    RNG.shuffle(prompts)
+    rng.shuffle(prompts)
     folds = np.array_split(prompts, n_folds)
     scores = torch.zeros(len(df))
     for fold in folds:
@@ -194,17 +159,129 @@ def trusted_edges_payoff(df: pd.DataFrame, scores: torch.Tensor, level: str) -> 
     return res
 
 
-# ----------------------------------------------------------------------- main
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--small", action="store_true")
-    args = ap.parse_args()
-    df = pd.read_parquet(RESULTS / ("fidelity_small.parquet" if args.small else "fidelity.parquet"))
-    df = add_derived(df)
-    n_prompts = df.prompt_id.nunique()
-    print(f"{len(df)} edits over {n_prompts} prompts")
+def _auc(score: np.ndarray, y: np.ndarray) -> float:
+    a = auroc(torch.tensor(score, dtype=torch.float32), torch.tensor(y, dtype=torch.float32))
+    return float(max(a, 1 - a))
 
-    ladder = {lv: bootstrap(df, lambda d, lv=lv: level_metrics(d, lv)) for lv in TWIN_LEVELS}
+
+def robustness(df: pd.DataFrame, cv_scores: torch.Tensor, level: str) -> dict:
+    """Checks the report quotes alongside the headline numbers: a "no change" baseline, simple
+    failure signals the trust model must beat, threshold and clip sensitivity, layer-0 share of
+    catastrophic misses, and a bootstrap interval on the trust model's AUROC. Uses its own RNG
+    so adding it leaves every other interval in summary.json unchanged."""
+    rng = np.random.default_rng(ROBUST_SEED)
+    big, top = df.real_big.to_numpy(), (df.selection == "top").to_numpy()
+    y = df[f"{level}_ok"].to_numpy().astype(float)
+    real = df.real_dlogp.abs()
+    # Predicting "no change" (zero) has error |real| on every edit.
+    zero_ok = within_tol(err=real, real=real).to_numpy()
+    sc = cv_scores.numpy()
+    pred = df[f"{level}_dlogp"].abs().to_numpy()
+    out: dict = {
+        "no_change": {
+            "within_tol": float(zero_ok.mean()),
+            "within_tol_big": float(zero_ok[big].mean()),
+            "mean_err_clipped": float(real.clip(upper=CLIP).mean()),
+        }
+    }
+    signals = {"abs_graph_prediction": pred}
+    if "linear_fulljac_dlogp" in df:
+        signals["graph_vs_fix_disagreement"] = (
+            (df[f"{level}_dlogp"] - df.linear_fulljac_dlogp).abs().to_numpy()
+        )
+    out["baseline_auroc"] = {
+        k: {"all": _auc(v, y), "big": _auc(v[big], y[big])} for k, v in signals.items()
+    }
+
+    # Trust-model AUROC with a cluster bootstrap over prompts (CV scores held fixed).
+    pid = df.prompt_id.to_numpy()
+    prompts = np.unique(pid)
+    idx = {p: np.flatnonzero(pid == p) for p in prompts}
+    reps = {"all": [], "big": []}
+    for _ in range(ROBUST_BOOT):
+        rows = np.concatenate([idx[p] for p in rng.choice(prompts, len(prompts), replace=True)])
+        reps["all"].append(_auc(sc[rows], y[rows]))
+        b = rows[big[rows]]
+        reps["big"].append(_auc(sc[b], y[b]))
+    out["trust_auroc_ci"] = {
+        k: [float(np.percentile(v, 2.5)), float(np.percentile(v, 97.5))] for k, v in reps.items()
+    }
+
+    # Leave-one-family-out AUROC restricted to edits with a noticeable effect.
+    X = design(df)
+    yt = torch.tensor(y, dtype=torch.float32)
+    lofo = {}
+    for fam in sorted(df.category.unique()):
+        test = (df.category == fam).to_numpy()
+        tt = torch.tensor(test)
+        mu, sd = X[~tt].mean(0), X[~tt].std(0) + 1e-6
+        w, b = fit_logistic((X[~tt] - mu) / sd, yt[~tt])
+        s = (((X[tt] - mu) / sd) @ w + b).numpy()
+        m = big[test]
+        lofo[fam] = float(auroc(torch.tensor(s[m]), yt[tt][torch.tensor(m)]))
+    lofo["mean"] = float(np.mean(list(lofo.values())))
+    out["transfer_lofo_big"] = lofo
+
+    # Payoff on the top edges with a noticeable effect, across trust cut-offs, and the same
+    # share kept by the simplest rule (smallest |graph prediction|).
+    m = top & big
+    out["payoff_thresholds"] = {
+        str(t): {
+            "kept_share": float((m & (sc >= t)).sum() / m.sum()),
+            "ok_trusted": float(y[m & (sc >= t)].mean()),
+            "ok_flagged": float(y[m & (sc < t)].mean()),
+        }
+        for t in (0.5, 0.6, 0.7, 0.8, 0.9)
+    }
+    kept = float((m & (sc >= 0.7)).sum() / m.sum())
+    q = np.quantile(pred[m], kept)
+    out["payoff_smallest_prediction"] = {
+        "kept_share": kept,
+        "ok_kept": float(y[m & (pred <= q)].mean()),
+        "ok_dropped": float(y[m & (pred > q)].mean()),
+    }
+
+    # Where the catastrophic misses are, and the ladder without layer-0 edits.
+    cat = df[df[f"{level}_catastrophic"]]
+    out["catastrophic_location"] = {
+        "n": len(cat),
+        "layer0": int((cat.layer == 0).sum()),
+        "layers0_2": int((cat.layer <= 2).sum()),
+        "ablate": int((cat.kind == "ablate").sum()),
+        "amplify": int((cat.kind == "amplify").sum()),
+    }
+    rest = df[df.layer > 0]
+    levels = [lv for lv in (*TWIN_LEVELS, *FIX_LEVELS) if f"{lv}_dlogp" in df]
+    out["without_layer0"] = {lv: level_metrics(rest, lv) for lv in levels}
+
+    # Error decomposition under different clips (the shares are clip-dependent).
+    decomp = {}
+    for clip in (1.0, 2.0, 5.0, 20.0):
+        e = {lv: df[f"{lv}_err"].clip(upper=clip).mean() for lv in TWIN_LEVELS}
+        decomp[str(clip)] = {
+            "frozen_layernorm": float((e["replacement"] - e["replacement_ln"]) / e["replacement"]),
+            "frozen_attention": float(
+                (e["replacement_ln"] - e["replacement_full"]) / e["replacement"]
+            ),
+        }
+    out["decomposition_by_clip"] = decomp
+    return out
+
+
+# ----------------------------------------------------------------------- main
+def compute_summary(df: pd.DataFrame) -> tuple[dict, TrustModel]:
+    """Every number analyze.py contributes to summary.json, plus the fitted trust model.
+
+    ``df`` must have gone through :func:`add_derived`. One generator (seed ``SEED``) is shared,
+    in this order, by the ladder bootstraps, the two trust CV fold shuffles and the fix
+    bootstraps: reordering these calls changes the intervals.
+    """
+    rng = np.random.default_rng(SEED)
+
+    def boot(lv: str) -> dict[str, list[float]]:
+        return cluster_bootstrap(df, lambda d: level_metrics(d, lv), BOOT, rng)
+
+    ladder = {lv: boot(lv) for lv in TWIN_LEVELS}
 
     # Fidelity vs depth: how many layers sit between the edit and the output.
     bins = [(0, 2), (3, 5), (6, 8), (9, 11)]
@@ -239,18 +316,18 @@ def main() -> None:
             for k, g in df.groupby(col)
         }
 
-    trust, model = trust_analysis(df, TRUST_LEVEL)
-    trust_full, _ = trust_analysis(df, "replacement_full")
-    model.save(RESULTS / "trust_model.json")
+    trust, model = trust_analysis(df, TRUST_LEVEL, rng)
+    trust_full, _ = trust_analysis(df, "replacement_full", rng)
     cv_scores = trust.pop("_cv_scores")
     trust_full.pop("_cv_scores")
     trust["transfer_lofo"] = trust_transfer(df, TRUST_LEVEL)
     trust["payoff"] = trusted_edges_payoff(df, cv_scores, TRUST_LEVEL)
+    robust = robustness(df, cv_scores, TRUST_LEVEL)
 
     fix_levels = [lv for lv in FIX_COMPARE if f"{lv}_dlogp" in df]
     fix = {
         "levels": fix_levels,
-        "ladder": {lv: bootstrap(df, lambda d, lv=lv: level_metrics(d, lv)) for lv in fix_levels},
+        "ladder": {lv: boot(lv) for lv in fix_levels},
         "by_category_spearman": {
             str(c): {
                 lv: float(g[[f"{lv}_dlogp", "real_dlogp"]].corr(method="spearman").iloc[0, 1])
@@ -265,7 +342,7 @@ def main() -> None:
 
     summary = {
         "n_edits": len(df),
-        "n_prompts": n_prompts,
+        "n_prompts": df.prompt_id.nunique(),
         "levels": list(TWIN_LEVELS),
         "level_labels": LEVEL_LABELS,
         "ladder": ladder,
@@ -275,48 +352,47 @@ def main() -> None:
         "trust": trust,
         "trust_replacement_full": {k: trust_full[k] for k in ("cv_auroc", "base_rate")},
         "fix": fix,
+        "robustness": robust,
         "real_effect": {
             "median_abs_dlogp": float(df.real_dlogp.abs().median()),
             "frac_big": float(df.real_big.mean()),
             "frac_flip": float(df.real_flip.mean()),
         },
     }
-    (RESULTS / "summary.json").write_text(json.dumps(summary, indent=2, default=float))
-    print(
-        json.dumps(
-            {lv: {k: round(v[0], 3) for k, v in m.items()} for lv, m in ladder.items()}, indent=1
-        )
-    )
-    print("decomposition", {k: round(v, 3) for k, v in decomposition.items()})
-    print(
-        "trust",
-        {
-            k: trust[k]
-            for k in (
-                "cv_auroc",
-                "base_rate",
-                "cv_auroc_big",
-                "base_rate_big",
-                "ok_rate_trusted_half",
-                "ok_rate_flagged_half",
-            )
-        },
-    )
-    print(
-        "big-effect",
-        {
-            lv: (round(ladder[lv]["spearman_big"][0], 3), round(ladder[lv]["within_tol_big"][0], 3))
-            for lv in TWIN_LEVELS
-        },
-    )
-    print("single", {k: round(v, 3) for k, v in trust["single_signal_auroc"].items()})
-    print(
-        "transfer (leave-one-family-out)",
-        {k: round(v, 3) for k, v in trust["transfer_lofo"].items()},
-    )
-    print("payoff", trust["payoff"])
-    print("fix", {lv: {k: round(v[0], 3) for k, v in m.items()} for lv, m in fix["ladder"].items()})
-    print("fix top-edge catastrophic", fix["top_edges_catastrophic"])
+    return summary, model
+
+
+META = {
+    "ladder": {"seed": SEED, "n_boot": BOOT, "unit": "prompt"},
+    "trust": {"seed": SEED, "cv_folds": CV_FOLDS, "note": "fold shuffle shares the ladder RNG"},
+    "fix": {"seed": SEED, "n_boot": BOOT, "unit": "prompt"},
+    "robustness": {"seed": ROBUST_SEED, "n_boot": ROBUST_BOOT, "unit": "prompt"},
+}
+
+
+def print_headline(summary: dict) -> None:
+    for k in ("spearman", "within_tol_big", "catastrophic"):
+        print(f"ladder {k:15s}", {lv: round(m[k][0], 3) for lv, m in summary["ladder"].items()})
+    print("decomposition", {k: round(v, 3) for k, v in summary["decomposition"].items()})
+    t = summary["trust"]
+    print("trust", {k: round(t[k], 3) for k in ("cv_auroc", "cv_auroc_big", "base_rate")})
+    fix = summary["fix"]["ladder"]
+    print("fix spearman", {lv: round(m["spearman"][0], 3) for lv, m in fix.items()})
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--small", action="store_true")
+    args = ap.parse_args()
+    df = pd.read_parquet(RESULTS / ("fidelity_small.parquet" if args.small else "fidelity.parquet"))
+    df = add_derived(df, [*TWIN_LEVELS, *(f for f in FIX_LEVELS if f"{f}_dlogp" in df)])
+    print(f"{len(df)} edits over {df.prompt_id.nunique()} prompts")
+
+    summary, model = compute_summary(df)
+    model.save(RESULTS / "trust_model.json")
+    model.save(ROOT / "twinlens" / "fidelity" / "trust_model.json")  # shipped with the package
+    update_summary(summary, meta=META)  # keeps the generalization / atp_baseline sections
+    print_headline(summary)
 
     from figures import make_figures  # local module, imported late so analysis runs headless
 

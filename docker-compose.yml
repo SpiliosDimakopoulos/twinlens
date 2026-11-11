@@ -3,5 +3,6 @@ services:
     build: .
     ports: ["8000:8000"]
     volumes: ["twinlens-cache:/cache"]
+    restart: unless-stopped
 volumes:
   twinlens-cache:

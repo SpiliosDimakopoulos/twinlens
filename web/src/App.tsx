@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 import { STATIC } from "./api";
 import { Glyph } from "./components/Glyph";
 import { TooltipProvider } from "./components/Tooltip";
-import { EXAMPLES, REPO } from "./examples";
+import { ErrorNote } from "./components/ui";
+import { DEFAULT_PROMPT, EXAMPLES, REPO } from "./examples";
 import { readParam, writeParams } from "./url";
 import { CaseStudiesView } from "./views/CaseStudiesView";
 import { InternalsView } from "./views/InternalsView";
@@ -30,11 +31,29 @@ function store(key: string, v: string) {
   try { localStorage.setItem(key, v); } catch { /* storage unavailable */ }
 }
 
+/** Keeps one broken view from blanking the whole page. */
+class ViewBoundary extends Component<{ children: ReactNode; resetKey: string }, { error: string | null }> {
+  override state = { error: null as string | null };
+  static getDerivedStateFromError(e: unknown) { return { error: String(e) }; }
+  override componentDidUpdate(prev: { resetKey: string }) {
+    if (prev.resetKey !== this.props.resetKey && this.state.error) this.setState({ error: null });
+  }
+  override render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div role="alert">
+        <ErrorNote error="This view hit an unexpected error and could not be shown. Try another tab or reload the page." />
+      </div>
+    );
+  }
+}
+
 function initialPrompt(): string {
   const p = Number(readParam("p"));
-  if (Number.isInteger(p) && p >= 1 && p <= EXAMPLES.length) return EXAMPLES[p - 1][0];
+  const example = Number.isInteger(p) ? EXAMPLES[p - 1] : undefined;
+  if (example) return example[0];
   const q = readParam("q");
-  return q && !STATIC ? q : EXAMPLES[0][0];
+  return q && !STATIC ? q : DEFAULT_PROMPT;
 }
 
 function ThemeToggle() {
@@ -102,10 +121,12 @@ export default function App() {
           ))}
         </nav>
         <main id="main" className="pt-4">
-          {tab === "twin" && <TwinView prompt={prompt} setPrompt={setPrompt} />}
-          {tab === "study" && <StudyView />}
-          {tab === "internals" && <InternalsView prompt={prompt} />}
-          {tab === "cases" && <CaseStudiesView />}
+          <ViewBoundary resetKey={tab}>
+            {tab === "twin" && <TwinView prompt={prompt} setPrompt={setPrompt} />}
+            {tab === "study" && <StudyView />}
+            {tab === "internals" && <InternalsView prompt={prompt} />}
+            {tab === "cases" && <CaseStudiesView />}
+          </ViewBoundary>
         </main>
         <footer className="mt-14 grid gap-4 border-t pt-5 text-[12px] text-muted rule sm:grid-cols-[1fr_auto]">
           <p className="max-w-[70ch] leading-relaxed">

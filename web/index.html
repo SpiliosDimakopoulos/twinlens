@@ -3,9 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="TwinLens: a digital twin of GPT-2's internals that tells you how far to trust its explanations." />
+    <meta name="description" content="Interactive demo: click a feature in GPT-2's attribution graph, see what the graph predicts, what GPT-2 really does, and a trust score. Shows why attribution graphs mislead and a fix that keeps them linear." />
+    <meta name="keywords" content="mechanistic interpretability, attribution graph, circuit tracing, transcoders, GPT-2, explainable AI, LLM interpretability" />
+    <meta name="author" content="Spilios Dimakopoulos" />
+    <link rel="canonical" href="https://spiliosdimakopoulos.github.io/twinlens/" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='11' cy='16' r='8' fill='none' stroke='%232a78d6' stroke-width='3'/><circle cx='21' cy='16' r='8' fill='none' stroke='%231c5cab' stroke-width='3'/></svg>" />
-    <title>TwinLens</title>
+    <title>TwinLens: can you trust an attribution graph? Interactive GPT-2 interpretability demo</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "TwinLens",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Web, Linux, macOS, Windows",
+        "description": "Checks attribution-graph explanations of GPT-2 against the real model: predicted vs real effect of every feature edit, a trust score, and a fix that keeps graphs linear.",
+        "url": "https://spiliosdimakopoulos.github.io/twinlens/",
+        "codeRepository": "https://github.com/SpiliosDimakopoulos/twinlens",
+        "license": "https://opensource.org/licenses/MIT",
+        "author": { "@type": "Person", "name": "Spilios Dimakopoulos" },
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+      }
+    </script>
     <meta property="og:type" content="website" />
     <meta property="og:title" content="TwinLens: how far can you trust an attribution graph?" />
     <meta property="og:description" content="Attribution graphs drop two derivatives. Restoring them keeps the graph linear and lifts counterfactual accuracy from rho 0.20 to 0.53 on GPT-2, replicated on Qwen3-0.6B." />
