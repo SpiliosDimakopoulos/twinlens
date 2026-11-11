@@ -11,6 +11,7 @@ import json
 import os
 import struct
 import warnings
+from collections.abc import Iterable
 from pathlib import Path
 
 import numpy as np
@@ -116,4 +117,59 @@ def convert_to_f32(src: str | Path, dst: str | Path, chunk_rows: int = 4096) -> 
             for i in range(0, flat.shape[0], chunk_rows):
                 f.write(flat[i : i + chunk_rows].float().contiguous().numpy().tobytes())
     tmp.replace(dst)
+    return dst
+
+
+def npz_to_safetensors(
+    src: str | Path, dst: str | Path, keys: Iterable[str] | None = None, chunk: int = 16 << 20
+) -> Path:
+    """Rewrite an ``.npz`` archive as an F32 safetensors file, streaming each array in
+    ``chunk``-byte pieces so peak RAM stays small. ``keys`` (if given) must all be present."""
+    import zipfile
+
+    from numpy.lib import format as npf
+
+    dst = Path(dst)
+    if dst.exists():
+        return dst
+    with zipfile.ZipFile(src) as z:
+        entries = {}
+        for info in z.infolist():
+            if not info.filename.endswith(".npy"):
+                continue
+            with z.open(info) as f:
+                version = npf.read_magic(f)
+                read_header = (
+                    npf.read_array_header_1_0 if version == (1, 0) else npf.read_array_header_2_0
+                )
+                shape, fortran, dtype = read_header(f)
+            if fortran and len(shape) > 1:
+                raise ValueError(f"{src}: {info.filename} is Fortran-ordered")
+            entries[info.filename[:-4]] = (info, tuple(shape), np.dtype(dtype))
+        if keys is not None:
+            missing = sorted(set(keys) - set(entries))
+            if missing:
+                raise KeyError(f"{src}: missing arrays {missing}; found {sorted(entries)}")
+        header, off = {}, 0
+        for k, (_, shape, _) in sorted(entries.items()):
+            n = 4 * int(np.prod(shape))
+            header[k] = {"dtype": "F32", "shape": list(shape), "data_offsets": [off, off + n]}
+            off += n
+        raw = json.dumps(header).encode()
+        raw += b" " * (-len(raw) % 8)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dst.with_suffix(".partial")
+        with open(tmp, "wb") as out:
+            out.write(struct.pack("<Q", len(raw)))
+            out.write(raw)
+            for _, (info, _, dtype) in sorted(entries.items()):
+                with z.open(info) as f:
+                    version = npf.read_magic(f)  # skip the .npy header
+                    (npf.read_array_header_1_0 if version == (1, 0) else npf.read_array_header_2_0)(
+                        f
+                    )
+                    step = chunk - chunk % dtype.itemsize
+                    while buf := f.read(step):
+                        out.write(np.frombuffer(buf, dtype=dtype).astype("<f4").tobytes())
+        tmp.replace(dst)
     return dst

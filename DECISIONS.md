@@ -56,3 +56,44 @@ as the record of the original design.*
 
 Twin fidelity = agreement between the effect predicted at level 1 or 2 and the effect measured
 at level 3.
+
+## D4. Gemma-2-2B port (2026-11-11)
+
+- **Weights**: `unsloth/gemma-2-2b`, an ungated mirror of `google/gemma-2-2b` (same single BF16
+  `model.safetensors`), converted once to a memory-mapped F32 copy like Qwen3.
+  `twinlens/core/gemma2.py` follows HF `modeling_gemma2.py` (transformers 4.57): embeddings
+  × sqrt(d_model), four RMSNorms per block with a `1 + weight` factor, GQA, RoPE, alternating
+  sliding-window layers (implemented, not just asserted), GeGLU (tanh GELU), tied unembedding.
+  On a tiny random Gemma2 it matches HF to < 1e-5 (`tests/test_gemma_tiny.py`).
+- **Transcoders**: Gemma Scope 16k-feature JumpReLU transcoders
+  (`google/gemma-scope-2b-pt-transcoders`), with the per-layer L0 choice circuit-tracer uses
+  (`mntss/gemma-scope-transcoders`). Each `params.npz` (stored F32 arrays `W_enc` [2304, 16384],
+  `W_dec` [16384, 2304], `b_enc`, `b_dec`, `threshold`; checked from the zip directory) is
+  streamed into an F32 safetensors file and memory-mapped. Features are `pre * (pre > threshold)`
+  everywhere: clean trace, replacement levels, and hence the "active" set. The linear levels
+  keep each feature's clean on/off gate, as with ReLU.
+- **Norms**: every norm on the twin's path (`ln1`, `ln1_post`, `ln2`, and `ln2_post` if the
+  transcoder writes before it) is frozen, linearised or live per level, through the same
+  `hook_scale`/`hook_normalized` hooks as GPT-2 and Qwen3. Norms the transcoder replaces are
+  computed and then overwritten, so their treatment does not matter.
+- **Attention softcap** `50 tanh(s / 50)`: frozen levels freeze the pattern; live levels run the
+  real cap; `linear_fulljac` multiplies the score perturbation by `1 - tanh²(s0 / 50)` before the
+  softmax Jacobian. On the tiny model, leaving that factor out raises the Jacobian error vs.
+  the live reference from 0.1% to 1.1%.
+- **Final logit softcap** `30 tanh(l / 30)` is part of the read-out, applied identically at every
+  level (like the metrics' log-softmax). The linear levels are affine before it; the tests check
+  that with the cap switched off (`model.final_softcap = None`).
+- **BOS**: Gemma prepends BOS (id 2); `skip_first` is False, since the sweep never edits BOS.
+
+**Open question: which hooks the transcoders read and write.** The input is either the
+pre-feedforward norm output with its `1 + weight` (`hook_mlp_in`) or without it
+(`ln2.hook_normalized`). The output is the MLP output either after the post-feedforward norm
+(`hook_mlp_out`) or before it (`mlp.hook_out`). Both are parameters of
+`GemmaScopeTranscoderSet` (`in_hook`, `out_hook`). The defaults are `hook_mlp_in` and
+`hook_mlp_out`. Evidence on circuit-tracer's side: its config names `ln2.hook_normalized` and
+`hook_mlp_out`. With TransformerLens loaded `fold_ln=False` (as circuit-tracer does),
+`hook_normalized` is taken *before* the weight, and its nnsight backend maps it to the inner
+`_norm` call. That points to the input **without** the weight, and to the output after the
+post-norm. `experiments/gemma_convention.py` settles it on real weights: FVU and single-layer
+splice loss recovery for all four combinations at layers 2, 8, 14 and 20. Pick the combination
+with low FVU, recovery near 1 and L0 near the published value, and change the defaults to match.

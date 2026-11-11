@@ -20,7 +20,7 @@ from common import RESULTS, ROOT, write_parquet
 
 from twinlens.core.gpt2 import GPT2
 from twinlens.fidelity.engine import run_prompt
-from twinlens.twin.replacement import TWIN_LEVELS, Twin
+from twinlens.twin.replacement import FIX_LEVELS, TWIN_LEVELS, Twin
 
 
 def main() -> None:
@@ -34,9 +34,11 @@ def main() -> None:
     ap.add_argument(
         "--max-minutes", type=float, default=0, help="stop cleanly after this long (resume later)"
     )
-    ap.add_argument("--model", choices=["gpt2", "qwen3"], default="gpt2")
+    ap.add_argument("--model", choices=["gpt2", "qwen3", "gemma2"], default="gpt2")
     ap.add_argument("--per-family", type=int, default=0, help="prompts per family (0 = all)")
     ap.add_argument("--out", default=str(RESULTS))
+    ap.add_argument("--tc-in", default="hook_mlp_in", help="gemma2: transcoder input hook")
+    ap.add_argument("--tc-out", default="hook_mlp_out", help="gemma2: transcoder output hook")
     args = ap.parse_args()
 
     corpus = json.loads((ROOT / "experiments" / "prompts.json").read_text())
@@ -48,6 +50,14 @@ def main() -> None:
 
     if args.model == "gpt2":
         twin, modes = Twin(GPT2.load("gpt2")), TWIN_LEVELS
+    elif args.model == "gemma2":
+        from twinlens.core.gemma2 import Gemma2
+        from twinlens.twin.transcoders import GemmaScopeTranscoderSet
+
+        # 16k-feature transcoders: every level is affordable, including the nonlinear ones
+        tcs = GemmaScopeTranscoderSet(range(26), in_hook=args.tc_in, out_hook=args.tc_out)
+        twin = Twin(Gemma2.load(), tcs)
+        modes = (*TWIN_LEVELS, *FIX_LEVELS)
     else:  # nonlinear twins need full 164k-feature encodes per run: too slow on CPU
         from twinlens.core.qwen3 import Qwen3
         from twinlens.twin.transcoders import QwenTranscoderSet

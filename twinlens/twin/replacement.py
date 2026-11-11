@@ -1,7 +1,7 @@
 """The digital twin: a transcoder-based replacement model that predicts intervention effects.
 
-Works for any model exposing the TwinLens hook interface (GPT-2, Qwen3). Several levels of model
-are run with the same hook machinery (DECISIONS.md, D3):
+Works for any model exposing the TwinLens hook interface (GPT-2, Qwen3, Gemma-2). Several levels
+of model are run with the same hook machinery (DECISIONS.md, D3):
 
 * ``"direct"``      — like "linear", but downstream features are held at their clean values, so
                       only the edited feature's *direct* path (residual + frozen attention) acts.
@@ -24,6 +24,10 @@ are run with the same hook machinery (DECISIONS.md, D3):
 At zero perturbation every level gives the clean logits exactly (the error terms make the
 replacement exact), so any difference under an intervention is the twin's prediction error.
 
+Gemma-2's final logit softcap ``30 tanh(l / 30)`` is treated as part of the read-out, like the
+log-softmax of the metrics: the model applies it to the final logits at every level alike, so
+"linear" levels are linear up to it (they are affine in the logits before the cap).
+
 All transcoder compute is sparse (only the features active in the clean run, plus edited
 ones), which is what makes 164k-feature transcoders usable on a CPU.
 """
@@ -37,7 +41,7 @@ from typing import Literal, NamedTuple
 import torch
 
 from twinlens.core.gpt2 import GPT2, HookFn
-from twinlens.twin.transcoders import QwenTranscoderSet, TranscoderSet
+from twinlens.twin.transcoders import GemmaScopeTranscoderSet, QwenTranscoderSet, TranscoderSet
 
 Mode = Literal[
     "direct",
@@ -130,26 +134,36 @@ class Twin:
     def __init__(
         self,
         model: GPT2,
-        transcoders: TranscoderSet | QwenTranscoderSet | None = None,
+        transcoders: TranscoderSet | QwenTranscoderSet | GemmaScopeTranscoderSet | None = None,
         layers: Iterable[int] | None = None,
         tc_hook: str | None = None,
         skip_first: bool | None = None,
+        tc_out_hook: str | None = None,
     ):
         self.model = model
         self.tcs = transcoders or TranscoderSet(model.cfg.n_layers)
-        # Only the Qwen3 transcoder set covers a subset of layers (and has a ``layers`` list).
+        # The GPT-2 set has no ``layers`` list; the others may cover a subset of layers.
         qwen = hasattr(self.tcs, "layers")
         if layers is None:
             layers = self.tcs.layers if qwen else range(model.cfg.n_layers)
         self.layers: list[int] = list(layers)
         # Where the transcoder reads: GPT-2 transcoders read LayerNormPre(resid_mid) (no affine),
-        # the Qwen3 ones read the RMSNorm output including its weight.
-        self.tc_hook = tc_hook or ("hook_mlp_in" if qwen else "ln2.hook_normalized")
+        # the Qwen3 ones read the RMSNorm output including its weight; the Gemma set says.
+        self.tc_hook = (
+            tc_hook
+            or getattr(self.tcs, "in_hook", None)
+            or ("hook_mlp_in" if qwen else "ln2.hook_normalized")
+        )
+        # Where it writes (and where edits and error terms live). For Gemma-2 this may be before
+        # the post-feedforward norm, which then stays in the twin like any other norm.
+        self.tc_out_hook = tc_out_hook or getattr(self.tcs, "out_hook", "hook_mlp_out")
         # Position 0 can never be changed by an edit (causal attention), so its MLP output is
         # constant and may live entirely in the error term. Qwen's first token is an attention
         # sink with a huge norm on which transcoders fire thousands of features; skipping it
         # is exact and keeps the twin sparse.
-        self.skip_first = skip_first if skip_first is not None else qwen
+        if skip_first is None:
+            skip_first = getattr(self.tcs, "skip_first", qwen)
+        self.skip_first = skip_first
         self._labels: dict[tuple[int, int], list[str]] = {}
 
     # ------------------------------------------------------------------ tracing
@@ -168,7 +182,7 @@ class Twin:
                     "attn.hook_k",
                     "attn.hook_v",
                     "hook_resid_mid",
-                    "hook_mlp_out",
+                    self.tc_out_hook,
                     self.tc_hook,
                 )
             ]
@@ -177,13 +191,13 @@ class Twin:
         for l in self.layers:
             b = f"blocks.{l}."
             tc = self.tcs[l]
-            acts[l] = torch.relu(tc.pre(cache[b + self.tc_hook])[0])
+            acts[l] = tc.encode(cache[b + self.tc_hook])[0]  # ReLU or JumpReLU
             if self.skip_first:
                 acts[l][0] = 0
             active[l] = acts[l].any(0).nonzero()[:, 0]
             dec[l] = tc.dec_rows(active[l])
             recon = acts[l][:, active[l]] @ dec[l] + tc.b_dec
-            error[l] = cache[b + "hook_mlp_out"] - recon[None]
+            error[l] = cache[b + self.tc_out_hook] - recon[None]
         return CleanTrace(
             tokens=tokens,
             logits=logits[0],
@@ -192,7 +206,7 @@ class Twin:
             scales={k: v for k, v in cache.items() if k.endswith("hook_scale")},
             normalized={k: v for k, v in cache.items() if k.endswith("hook_normalized")},
             resid_mid={l: cache[f"blocks.{l}.hook_resid_mid"] for l in range(L)},
-            mlp_out={l: cache[f"blocks.{l}.hook_mlp_out"] for l in range(L)},
+            mlp_out={l: cache[f"blocks.{l}.{self.tc_out_hook}"] for l in range(L)},
             acts=acts,
             error=error,
             active=active,
@@ -249,7 +263,7 @@ class Twin:
             return lambda out, _: add(out.clone())
 
         return [
-            (f"blocks.{l}.hook_mlp_out", edit_out(self._edit_deltas(trace, l, items)))
+            (f"blocks.{l}.{self.tc_out_hook}", edit_out(self._edit_deltas(trace, l, items)))
             for l, items in by_layer.items()
         ]
 
@@ -290,7 +304,7 @@ class Twin:
                 hooks.append((f"blocks.{l}.{self.tc_hook}", _record(store, l)))
             hooks.append(
                 (
-                    f"blocks.{l}.hook_mlp_out",
+                    f"blocks.{l}.{self.tc_out_hook}",
                     self._twin_mlp(trace, level.features, l, store, by_layer.get(l, [])),
                 )
             )
@@ -299,22 +313,35 @@ class Twin:
     def _attn_jacobian_hooks(self, trace: CleanTrace) -> list:
         """First-order expansion of attention around the clean run:
         ds = (dq . k0 + q0 . dk) / sqrt(d_head),   dp = p0 * (ds - sum_k p0 ds),
-        z  = p0 v + dp v0      (the second-order term dp dv is removed)."""
+        z  = p0 v + dp v0      (the second-order term dp dv is removed).
+        With a score softcap s -> c tanh(s / c) (Gemma-2), ds is first multiplied by its
+        derivative at the clean score, 1 - tanh^2(s0 / c)."""
         hooks: list = []
-        scale = self.model.cfg.d_head**0.5
-        for l in range(self.model.cfg.n_layers):
+        cfg = self.model.cfg
+        scale = getattr(cfg, "query_pre_attn_scalar", cfg.d_head) ** 0.5
+        cap = getattr(cfg, "attn_softcap", None)
+        for l in range(cfg.n_layers):
             q0, k0, v0 = trace.qkv[l]
             p0 = trace.patterns[l]
+            if cap is not None:
+                s0 = torch.einsum("bqhe,bkhe->bhqk", q0, k0) / scale
+                dcap0 = 1 - torch.tanh(s0 / cap) ** 2
+            else:
+                dcap0 = None
             cur: dict[str, torch.Tensor] = {}
             for x in "qkv":
                 hooks.append((f"blocks.{l}.attn.hook_{x}", _record(cur, x)))
 
-            def pattern(_p: torch.Tensor, _: str, c=cur, q0=q0, k0=k0, p0=p0) -> torch.Tensor:
+            def pattern(
+                _p: torch.Tensor, _: str, c=cur, q0=q0, k0=k0, p0=p0, dcap=dcap0
+            ) -> torch.Tensor:
                 dq, dk = c["q"] - q0, c["k"] - k0
                 ds = (
                     torch.einsum("bqhe,bkhe->bhqk", dq, k0)
                     + torch.einsum("bqhe,bkhe->bhqk", q0, dk)
                 ) / scale
+                if dcap is not None:
+                    ds = ds * dcap
                 c["dp"] = p0 * (ds - (p0 * ds).sum(-1, keepdim=True))
                 return p0 + c["dp"]
 
@@ -355,7 +382,7 @@ class Twin:
             return linear_fn
 
         def replacement_fn(out: torch.Tensor, _: str) -> torch.Tensor:
-            acts = torch.relu(tc.pre(store[l]))
+            acts = tc.encode(store[l])
             if self.skip_first:
                 # trace() put the whole position-0 output in the error term; re-encoding it
                 # here would count it twice.
@@ -446,7 +473,7 @@ class Twin:
         for l in range(m.cfg.n_layers):
             hooks.append((f"blocks.{l}.attn.hook_pattern", _freeze(trace.patterns[l])))
         for l in self.layers:
-            hooks.append((f"blocks.{l}.hook_mlp_out", leaf_mlp(l)))
+            hooks.append((f"blocks.{l}.{self.tc_out_hook}", leaf_mlp(l)))
         with torch.enable_grad(), m.hooks(hooks):
             logits = m(trace.tokens, last_only=True)
             return target_fn(logits), leaves

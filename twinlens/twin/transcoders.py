@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from twinlens.core.weights import CACHE_DIR, MmapSafetensors, hf_file
+from twinlens.core.weights import CACHE_DIR, MmapSafetensors, hf_file, npz_to_safetensors
 
 REPO = "jacobdunefsky/gpt2small-transcoders"
 
@@ -160,6 +160,9 @@ class RemoteRowTranscoder:
         outs = [x @ self._W_enc[i : i + chunk].float().T for i in range(0, self.d_sae, chunk)]
         return torch.cat(outs, -1) + self.b_enc
 
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.relu(self.pre(x))
+
     def enc_rows(self, idx: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         return self._W_enc[idx].float(), self.b_enc[idx]
 
@@ -218,4 +221,87 @@ class QwenTranscoderSet:
             raise KeyError(f"no transcoder loaded for layer {layer}")
         if layer not in self._cache:
             self._cache[layer] = RemoteRowTranscoder(layer)
+        return self._cache[layer]
+
+
+# ---------------------------------------------------------------- Gemma-2-2B
+GEMMA_REPO = "google/gemma-scope-2b-pt-transcoders"  # Gemma Scope, 16,384 features/layer
+# average L0 of the 16k transcoders that circuit-tracer uses (mntss/gemma-scope-transcoders)
+GEMMA_L0 = (
+    *(76, 65, 49, 54, 88, 87, 95, 70, 52, 72, 88, 5, 6),
+    *(8, 8, 8, 10, 12, 13, 12, 11, 13, 15, 25, 37, 41),
+)
+GEMMA_KEYS = ("W_enc", "W_dec", "b_enc", "b_dec", "threshold")
+
+
+@dataclass
+class JumpReLUTranscoder(Transcoder):
+    """``acts = pre * (pre > threshold)``: a feature is active only above its threshold."""
+
+    threshold: torch.Tensor | None = None  # [d_sae]
+
+    def encode(self, x_normed: torch.Tensor) -> torch.Tensor:
+        pre = self.pre(x_normed)
+        # Gemma Scope thresholds are positive; the clamp keeps "active" meaning "act > 0".
+        return pre * (pre > self.threshold.clamp(min=0))
+
+
+class GemmaScopeTranscoderSet:
+    """Gemma Scope JumpReLU transcoders, one per layer, memory-mapped from an F32 safetensors
+    copy of each ``params.npz`` (converted on first use).
+
+    Where they read and write is an open question (DECISIONS.md, D-Gemma), so it is a parameter:
+    ``in_hook`` is ``"hook_mlp_in"`` (pre-feedforward norm output, ``1 + weight`` included) or
+    ``"ln2.hook_normalized"`` (without it); ``out_hook`` is ``"hook_mlp_out"`` (after the
+    post-feedforward norm) or ``"mlp.hook_out"`` (before it, so that norm stays in the twin).
+    ``files`` maps layers to local ``.npz``/``.safetensors`` files instead of the Hub (tests).
+    """
+
+    skip_first = False  # Gemma has a BOS token; the sweep never edits it
+
+    def __init__(
+        self,
+        layers: range | list[int] = range(26),
+        in_hook: str = "hook_mlp_in",
+        out_hook: str = "hook_mlp_out",
+        files: dict[int, Path] | None = None,
+        cache_dir: Path | None = None,
+    ):
+        self.layers = list(layers)
+        self.in_hook, self.out_hook = in_hook, out_hook
+        self.files = files
+        self.dir = cache_dir or CACHE_DIR / "twinlens" / "gemma-scope-tc"
+        self._cache: dict[int, JumpReLUTranscoder] = {}
+
+    def __contains__(self, layer: int) -> bool:
+        return layer in self.layers
+
+    def path(self, layer: int) -> Path:
+        """The F32 safetensors file for ``layer`` (downloaded and converted if needed)."""
+        if self.files is not None:
+            src = Path(self.files[layer])
+            if src.suffix == ".safetensors":
+                return src
+            return npz_to_safetensors(src, src.with_suffix(".f32.safetensors"), GEMMA_KEYS)
+        dst = self.dir / f"layer_{layer}.f32.safetensors"
+        if dst.exists():
+            return dst
+        npz = hf_file(
+            GEMMA_REPO, f"layer_{layer}/width_16k/average_l0_{GEMMA_L0[layer]}/params.npz"
+        )
+        return npz_to_safetensors(npz, dst, GEMMA_KEYS)
+
+    def __getitem__(self, layer: int) -> JumpReLUTranscoder:
+        if layer not in self.layers:
+            raise KeyError(f"no transcoder loaded for layer {layer}")
+        if layer not in self._cache:
+            st = MmapSafetensors(self.path(layer))
+            missing = [k for k in GEMMA_KEYS if k not in st]
+            if missing:
+                raise KeyError(f"layer {layer}: transcoder file lacks {missing}")
+            fields = ("W_enc", "b_enc", "W_dec", "b_dec", "threshold")
+            tc = JumpReLUTranscoder(layer, *(st.get(k) for k in fields))
+            if tc.W_enc.shape[1] != tc.W_dec.shape[0]:
+                raise ValueError(f"layer {layer}: W_enc {tc.W_enc.shape} vs W_dec {tc.W_dec.shape}")
+            self._cache[layer] = tc
         return self._cache[layer]
