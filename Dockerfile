@@ -6,7 +6,7 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM python:3.12-slim
+FROM python:3.15-slim
 WORKDIR /app
 ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1 TWINLENS_CACHE=/cache
 RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
