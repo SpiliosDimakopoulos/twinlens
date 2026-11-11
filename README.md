@@ -40,7 +40,11 @@ strongest arrows of the graph and prints one row per arrow:
 
 ```
 layer word         feature    graph    fixed    GPT-2  graph verdict   fixed verdict   trust
-    0  Mary           5545   -8.122   +0.321   +0.231  WRONG SIGN      ok                 7%
+    0  Mary           5545   -8.117   +0.318   +0.228  WRONG SIGN      ok                 7%
+   10  to            13585   +0.014   +0.031   +0.032  understated     ok                98%
+    7  Mary          12771   -0.186   +0.032   +0.034  WRONG SIGN      ok                81%
+  ...
+Today's graph is off on 3 of 8 edges; with the fix, 0 of 8.
 ```
 
 - **graph**: today's attribution graph (LayerNorm and attention frozen);
@@ -58,19 +62,20 @@ Add `--json` for machine-readable output and `--top 20` for more arrows.
 From 8,064 edits on GPT-2 small (56 prompts, 8 task families). Full write-up:
 [report](https://spiliosdimakopoulos.github.io/twinlens/report/) ([PDF](docs/TwinLens_report.pdf)).
 
-| | today's graph | with the fix |
-|---|---|---|
-| rank agreement with the real effect (Spearman ρ) | 0.20 | 0.53 |
-| right direction, on edits that move the answer | 67% | 86% |
-| badly wrong (off by more than 1 nat) | 2.2% | 0.05% |
-| IOI prompts, rank agreement | 0.01 | 0.59 |
+| | today's graph | gradient through real GPT-2 | with the fix |
+|---|---|---|---|
+| rank agreement with the real effect (Spearman ρ) | 0.20 | 0.38 | 0.53 |
+| right direction, on edits that move the answer | 67% | 77% | 86% |
+| badly wrong (off by more than 1 nat) | 2.2% | 0.1% | 0.05% |
 
 - **Why the graph fails.** Frozen LayerNorm causes most of the error and nearly all large
   misses, almost all of them for edits in the first three layers. Frozen attention causes most
   of the ranking error.
 - **The fix.** Keeping the LayerNorm and attention-softmax Jacobians gives a graph that is still
-  linear and matches the nonlinear twin. On Qwen3-0.6B the gain is smaller but holds on every
-  metric (Δρ +0.12 [0.05, 0.20]).
+  linear and matches the nonlinear twin. It also ranks and signs effects better than attribution
+  patching, a gradient through the real model (Δρ +0.15 [0.11, 0.19]). On Qwen3-0.6B the gain
+  over today's graph is smaller but holds on every metric (Δρ +0.12 [0.05, 0.20]). IOI prompts
+  go from ρ 0.01 to 0.59.
 - **Spotting bad predictions.** A logistic model over nine signals from the unedited run flags
   failures with AUROC 0.84 on edits that move the answer. Disagreement between today's graph
   and the fixed graph is an even better warning (0.94).

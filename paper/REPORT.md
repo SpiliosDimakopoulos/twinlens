@@ -48,6 +48,11 @@ Four findings:
    graph (0.94). Among the top attribution edges with a noticeable effect, the graph is right 54% of the time overall, 71%
    on the edges the trust model clears, and 22% on those it flags.
 
+5. **The fixed graph beats a gradient through the real model.** Attribution patching, one
+   backward pass through GPT-2 itself with nothing frozen, reaches ρ = 0.38 and 77% sign
+   agreement on the same edits. Fix B is better on both: Δρ +0.15 [0.11, 0.19] and +9 pp
+   [4, 14] in sign agreement, with the same error size (§4.8).
+
 Effects in this study are small: only 9.0% of edits move the output by more than 0.05 nats and
 96 edits by more than 0.2 nats. The rank and sign results are the robust ones; the
 within-tolerance and mean-error numbers should be read against the "no change" baseline (§3).
@@ -400,19 +405,37 @@ fix matches the nonlinear twin on Qwen3, because that twin was not run. The gain
 not uniform across task families: it is largest on induction, syntax, sentiment and IOI, and
 roughly flat on code and narrative.
 
+### 4.8 Is Fix B more than a backward pass? Attribution patching on the real model
+
+Attribution patching estimates an edit's effect with one gradient through the real model:
+Δlog p ≈ ∂log p/∂mlp_out[l, p] · (a′ − a) W_dec[f] (Syed et al., 2024; Kramár et al., 2024).
+LayerNorm and attention are differentiated, not frozen, and the MLPs are the real ones, so it
+has every derivative Fix B restores and more. We computed it for all 8,064 edits
+(`experiments/atp_baseline.py`, `experiments/analyze_atp.py`):
+
+| predictor | ρ [95% CI] | sign agree (big) | within tol (big) | catastrophic | mean err |
+|---|---|---|---|---|---|
+| Graph today | 0.20 [0.14, 0.25] | 66.5% | 54.2% | 2.2% | 0.113 |
+| Attribution patching (real GPT-2) | 0.38 [0.34, 0.42] | 76.5% | 77.0% | 0.1% | 0.019 |
+| Fix B | 0.53 [0.49, 0.56] | 85.7% | 80.1% | 0.0% | 0.019 |
+
+Paired on the same edits, Fix B − attribution patching is Δρ +0.15 [0.11, 0.19] and +9 pp
+[4, 14] in sign agreement; within tolerance (+3 pp [−2, 8]), catastrophic misses and mean error
+are indistinguishable. A gradient through the real model avoids the frozen graph's large
+errors, but it ranks and signs effects worse than the linear twin with the two Jacobians. One
+reading is that the twin's first-order expansion is taken through sparse transcoder features
+with fixed ReLU gates, which behave more linearly under a feature-sized edit than the real
+GELU MLPs do; we have not tested this explanation.
+
 ## 5. Limitations
 
 - **Two models, two transcoder families.** GPT-2 small with per-layer transcoders, and
   Qwen3-0.6B with `circuit-tracer` transcoders, where we covered only the upper 18 layers and
   far fewer edits (§4.7). Larger models and cross-layer transcoders, which the current
   circuit-tracing work uses, remain untested.
-- **No gradient baseline on the real model.** Attribution patching (gradient × change in
-  activation on the real model; Syed et al., 2024; Kramár et al., 2024) and integrated-gradient
-  variants (Marks et al., 2024; Hanna et al., 2024) take gradients through the real model,
-  LayerNorm and attention included unless detached. We have not run them on these edits, so we cannot say how much of
-  Fix B's accuracy a single backward pass through the real model would already give. Fix B
-  should be read as a repair for *replacement-model graphs*, where feature-to-feature edges
-  are wanted, not as a better effect estimator than those methods.
+- **One gradient baseline.** §4.8 compares Fix B with attribution patching on GPT-2 only.
+  Integrated-gradient variants (Marks et al., 2024; Hanna et al., 2024) and AtP* (Kramár et
+  al., 2024) were not run, and the comparison was not repeated on Qwen3.
 - **Only feature-to-output effects are tested.** A graph also asserts feature-to-feature
   edges; we never measure an intermediate feature's response to an edit.
 - **Effects are small and early layers dominate the failures.** See §3 and §4.1: few edits
@@ -456,7 +479,8 @@ roughly flat on code and narrative.
   treatment). Kramár et al. identify softmax saturation as a failure mode of first-order
   estimates through attention. Keeping these derivatives is therefore not new outside
   replacement-model graphs; our point is that the graph setting can have them too without
-  losing linearity.
+  losing linearity, and that on these edits the resulting linear graph predicts effects better
+  than attribution patching does (§4.8).
 - **Faithfulness of replacement models.** Ameisen et al. report that perturbation agreement
   decays with depth and suspect the frozen normalisation denominators. Our contributions:
   - decomposing that error into frozen-LN, frozen-attention and transcoder components, on a

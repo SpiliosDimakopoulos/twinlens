@@ -94,25 +94,28 @@ unfreezing one more component of the real model, and then measure it on the real
 <p>The fix replicates on a second, architecturally different model, Qwen3-0.6B (§4.7): the
 paired improvement in ρ is +0.12 [0.05, 0.20] and catastrophic misses fall from 3.0% to
 0.8%. The gain is smaller than on GPT-2, on 16 prompts, with every paired interval
-excluding zero (uncorrected for multiple metrics).</p>
-<p>In this setting, the attribution graph's problem is therefore not linearity but the
-derivatives it drops.
+excluding zero (uncorrected for multiple metrics).
 4. <strong>Failures of today's graph can be anticipated without running the real model.</strong> A logistic
 "trust model" over nine signals computed from the clean run alone predicts whether the
 graph prediction will hold: AUROC 0.93 on held-out prompts and on held-out <em>task families</em>
 over all edits, and 0.84 on the edits with a noticeable effect, where the task is not
 trivial (95% interval 0.80–0.87). Simpler signals do about as well or better: the size of
 the graph's own prediction (0.87 on noticeable edits), or its disagreement with the fixed
-graph (0.94). Among the top
-attribution edges with a noticeable effect, the graph is right 54% of the time overall, 71%
+graph (0.94). Among the top attribution edges with a noticeable effect, the graph is right 54% of the time overall, 71%
 on the edges the trust model clears, and 22% on those it flags.</p>
+</li>
+<li>
+<p><strong>The fixed graph beats a gradient through the real model.</strong> Attribution patching, one
+    backward pass through GPT-2 itself with nothing frozen, reaches ρ = 0.38 and 77% sign
+    agreement on the same edits. Fix B is better on both: Δρ +0.15 [0.11, 0.19] and +9 pp
+    [4, 14] in sign agreement, with the same error size (§4.8).</p>
 </li>
 </ol>
 <p>Effects in this study are small: only 9.0% of edits move the output by more than 0.05 nats and
 96 edits by more than 0.2 nats. The rank and sign results are the robust ones; the
 within-tolerance and mean-error numbers should be read against the "no change" baseline (§3).</p>
-<p>We ship this as a live tool. For any feature you click, TwinLens shows the effect predicted by
-every twin level, the real effect, and a trust score computed before the real model runs.</p>
+<p>The repository includes a dashboard and a command-line audit (<code>twinlens audit</code>) that show, for
+any feature, the effect predicted at each twin level, the real effect, and the trust score.</p>
 <hr />
 <h2>1. Motivation</h2>
 <p>Mechanistic interpretability increasingly explains model behaviour through replacement models:
@@ -172,7 +175,7 @@ than the mid-layer site reported for GPT-2 XL.</li>
 <h2>3. The twin ladder</h2>
 <p>Fix a prompt and its clean run. A <em>feature edit</em> sets transcoder feature <em>f</em> at layer <em>l</em> and
 position <em>p</em> from its clean activation <em>a</em> to <em>a′</em>: 0 to ablate, 2a to amplify. We compare the
-change it causes in the log-probability of the clean top-1 token, Δlog p, under six models:</p>
+change it causes in the log-probability of the clean top-1 token, Δlog p, under five twin levels, two fixes and the real model:</p>
 <table>
 <thead>
 <tr>
@@ -235,7 +238,7 @@ change it causes in the log-probability of the clean top-1 token, Δlog p, under
 </table>
 <p>In every twin level, each MLP is replaced by its transcoder plus that layer's clean-run error
 term (<code>mlp_out − transcoder(mlp_in)</code>), held fixed. So at zero perturbation every level
-reproduces the clean logits exactly; this is tested for all six. In the real model, an edit
+reproduces the clean logits exactly; this is tested for every level. In the real model, an edit
 moves the feature's decoder direction, <code>mlp_out[p] += (a′ − a)·W_dec[f]</code>, and everything
 downstream is recomputed.</p>
 <p>Level 2 is the attribution graph itself, run as a model: a change at any feature spreads
@@ -391,7 +394,7 @@ prompt:</p>
 <ul>
 <li><strong>AUROC 0.93</strong> over all edits (base rate 90%). Most of this is the easy distinction between
     negligible edits, which are within tolerance almost by definition, and the rest.</li>
-<li><strong>AUROC 0.84</strong> on big edits, where the base rate is only 54%. This is the informative number.
+<li>AUROC 0.84 on big edits, where the base rate is only 54%; this is the more informative number.
     A cluster bootstrap over prompts (CV scores held fixed) gives 0.80–0.87 for big edits and
     0.92–0.94 over all edits.</li>
 <li><strong>Simpler baselines.</strong> The absolute size of the graph's own prediction, which is also
@@ -428,15 +431,11 @@ the softmax turns that into</p>
 </code></pre>
 <p>The head output z = p·v then becomes z = p₀v + p₀·dv + dp·v₀. We drop the product of the two
 changes (dp·dv), which is second-order.</p>
-<p>Adding both terms keeps the model linear:</p>
-<ul>
-<li><strong>Fix B is affine</strong> in the perturbation, which is tested.</li>
-<li><strong>It is the exact first-order expansion</strong> of the twin with frozen ReLU gates but live
-    LayerNorm and attention. On a 1% edit it agrees with that twin to &lt; 5%, while the frozen versions do not
-    (<a href="https://github.com/SpiliosDimakopoulos/twinlens/blob/main/tests/test_twin.py"><code>tests/test_twin.py</code></a>).</li>
-<li><strong>In practice, it is the attribution graph you get by <em>not detaching</em></strong> the LayerNorm scales
-    and attention scores when backpropagating.</li>
-</ul>
+<p>Adding both terms keeps the model linear: Fix B is affine in the perturbation (tested), and it
+is the exact first-order expansion of the twin with frozen ReLU gates but live LayerNorm and
+attention. On a 1% edit it agrees with that twin to within 5%, while the frozen versions do not
+(<a href="https://github.com/SpiliosDimakopoulos/twinlens/blob/main/tests/test_twin.py"><code>tests/test_twin.py</code></a>). In practice it is the attribution graph obtained by not detaching the
+LayerNorm scales and attention scores during backpropagation.</p>
 <table>
 <thead>
 <tr>
@@ -494,13 +493,13 @@ changes (dp·dv), which is second-order.</p>
 </tbody>
 </table>
 <ul>
-<li><strong>Fix A alone captures the entire benefit of live LayerNorm.</strong> It matches level 4 on every
-    metric while staying linear. It cuts mean error by 79%, and catastrophic misses among the top
+<li>Fix A matches level 4 (live LayerNorm) within the intervals on every metric while staying
+    linear. It cuts mean error by 79%, and catastrophic misses among the top
     edges from 4.2% to 0.47%.</li>
-<li><strong>Fix B matches or exceeds the nonlinear twin on every metric.</strong> Top-edge catastrophic misses
+<li>Fix B matches the nonlinear twin within the intervals on every metric. Top-edge catastrophic misses
     fall to 0.10%. Since Fix B is linear and the nonlinear twin is not, the remaining gap to the
     real model is due to the transcoders, not to linearisation.</li>
-<li><strong>Against the "no change" baseline the gain is in rank and sign, not in error size.</strong> Fix B
+<li>Against the "no change" baseline the gain is in rank and sign, not in error size. Fix B
     is within tolerance on 80% of big edits against 75% for "no change", and its clipped mean
     error (0.019) equals that baseline's (0.018). What it adds is the direction and ordering of
     effects: ρ 0.53 and 86% sign agreement, where "no change" has neither.</li>
@@ -607,19 +606,66 @@ predicted effects, but their size is still often wrong. We also cannot say wheth
 fix matches the nonlinear twin on Qwen3, because that twin was not run. The gain is also
 not uniform across task families: it is largest on induction, syntax, sentiment and IOI, and
 roughly flat on code and narrative.</p>
+<h3>4.8 Is Fix B more than a backward pass? Attribution patching on the real model</h3>
+<p>Attribution patching estimates an edit's effect with one gradient through the real model:
+Δlog p ≈ ∂log p/∂mlp_out[l, p] · (a′ − a) W_dec[f] (Syed et al., 2024; Kramár et al., 2024).
+LayerNorm and attention are differentiated, not frozen, and the MLPs are the real ones, so it
+has every derivative Fix B restores and more. We computed it for all 8,064 edits
+(<a href="https://github.com/SpiliosDimakopoulos/twinlens/blob/main/experiments/atp_baseline.py"><code>experiments/atp_baseline.py</code></a>, <a href="https://github.com/SpiliosDimakopoulos/twinlens/blob/main/experiments/analyze_atp.py"><code>experiments/analyze_atp.py</code></a>):</p>
+<table>
+<thead>
+<tr>
+<th>predictor</th>
+<th>ρ [95% CI]</th>
+<th>sign agree (big)</th>
+<th>within tol (big)</th>
+<th>catastrophic</th>
+<th>mean err</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Graph today</td>
+<td>0.20 [0.14, 0.25]</td>
+<td>66.5%</td>
+<td>54.2%</td>
+<td>2.2%</td>
+<td>0.113</td>
+</tr>
+<tr>
+<td>Attribution patching (real GPT-2)</td>
+<td>0.38 [0.34, 0.42]</td>
+<td>76.5%</td>
+<td>77.0%</td>
+<td>0.1%</td>
+<td>0.019</td>
+</tr>
+<tr>
+<td>Fix B</td>
+<td>0.53 [0.49, 0.56]</td>
+<td>85.7%</td>
+<td>80.1%</td>
+<td>0.0%</td>
+<td>0.019</td>
+</tr>
+</tbody>
+</table>
+<p>Paired on the same edits, Fix B − attribution patching is Δρ +0.15 [0.11, 0.19] and +9 pp
+[4, 14] in sign agreement; within tolerance (+3 pp [−2, 8]), catastrophic misses and mean error
+are indistinguishable. A gradient through the real model avoids the frozen graph's large
+errors, but it ranks and signs effects worse than the linear twin with the two Jacobians. One
+reading is that the twin's first-order expansion is taken through sparse transcoder features
+with fixed ReLU gates, which behave more linearly under a feature-sized edit than the real
+GELU MLPs do; we have not tested this explanation.</p>
 <h2>5. Limitations</h2>
 <ul>
 <li><strong>Two models, two transcoder families.</strong> GPT-2 small with per-layer transcoders, and
     Qwen3-0.6B with <code>circuit-tracer</code> transcoders, where we covered only the upper 18 layers and
     far fewer edits (§4.7). Larger models and cross-layer transcoders, which the current
     circuit-tracing work uses, remain untested.</li>
-<li><strong>No gradient baseline on the real model.</strong> Attribution patching (gradient × change in
-    activation on the real model; Syed et al., 2024; Kramár et al., 2024) and integrated-gradient
-    variants (Marks et al., 2024; Hanna et al., 2024) take gradients through the real model,
-    LayerNorm and attention included unless detached. We have not run them on these edits, so we cannot say how much of
-    Fix B's accuracy a single backward pass through the real model would already give. Fix B
-    should be read as a repair for <em>replacement-model graphs</em>, where feature-to-feature edges
-    are wanted, not as a better effect estimator than those methods.</li>
+<li><strong>One gradient baseline.</strong> §4.8 compares Fix B with attribution patching on GPT-2 only.
+    Integrated-gradient variants (Marks et al., 2024; Hanna et al., 2024) and AtP* (Kramár et
+    al., 2024) were not run, and the comparison was not repeated on Qwen3.</li>
 <li><strong>Only feature-to-output effects are tested.</strong> A graph also asserts feature-to-feature
     edges; we never measure an intermediate feature's response to an edit.</li>
 <li><strong>Effects are small and early layers dominate the failures.</strong> See §3 and §4.1: few edits
@@ -665,7 +711,8 @@ through the pattern.</li>
     treatment). Kramár et al. identify softmax saturation as a failure mode of first-order
     estimates through attention. Keeping these derivatives is therefore not new outside
     replacement-model graphs; our point is that the graph setting can have them too without
-    losing linearity.</li>
+    losing linearity, and that on these edits the resulting linear graph predicts effects better
+    than attribution patching does (§4.8).</li>
 <li><strong>Faithfulness of replacement models.</strong> Ameisen et al. report that perturbation agreement
     decays with depth and suspect the frozen normalisation denominators. Our contributions:<ul>
 <li>decomposing that error into frozen-LN, frozen-attention and transcoder components, on a

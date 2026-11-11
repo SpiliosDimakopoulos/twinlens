@@ -6,4 +6,4 @@
 - Accessibility improvements and a plain-language dashboard UI.
 - New `twinlens audit` CLI command.
 - Reproducible `make analyze`, with robustness checks.
-- Attribution-patching baseline script.
+- Attribution-patching baseline (`experiments/atp_baseline.py`, report §4.8): the fixed graph beats a gradient through the real model, Δρ +0.15 [0.11, 0.19].

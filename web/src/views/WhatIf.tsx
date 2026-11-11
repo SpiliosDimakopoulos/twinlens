@@ -82,11 +82,18 @@ export function WhatIf({ prompt, feature, tokens, mult, setMult, label = "Fig. 2
         <div className={`mt-4 transition-opacity ${busy ? "opacity-55" : ""}`}>
           <blockquote className="serif border-l-2 pl-3 text-[17px] leading-snug text-ink rule">
             {verdict(res.levels.linear.dlogp, res.levels.real.dlogp)}
-            {res.levels.linear_fulljac && (
-              <span className="mt-1 block text-[14px] text-ink2">
-                With the fix, the graph's error is {Math.abs(res.levels.linear_fulljac.dlogp - res.levels.real.dlogp).toFixed(2)} instead of {Math.abs(res.levels.linear.dlogp - res.levels.real.dlogp).toFixed(2)}.
-              </span>
-            )}
+            {res.levels.linear_fulljac && (() => {
+              const errFix = Math.abs(res.levels.linear_fulljac.dlogp - res.levels.real.dlogp);
+              const errGraph = Math.abs(res.levels.linear.dlogp - res.levels.real.dlogp);
+              // Below ~0.02 nats both errors are noise-level; comparing them would mislead.
+              if (Math.max(errFix, errGraph) < 0.02) return null;
+              const err = (v: number) => v.toFixed(v < 0.1 ? 3 : 2);
+              return (
+                <span className="mt-1 block text-[14px] text-ink2">
+                  With the fix, the graph's error is {err(errFix)} instead of {err(errGraph)}.
+                </span>
+              );
+            })()}
           </blockquote>
           <div className="mt-4"><GapPlot data={res} /></div>
           <ul className="sr-only" aria-label="Predicted and real change">
