@@ -394,7 +394,7 @@ def generalization_figure(gen: dict, out: Path) -> None:
         ("catastrophic", "Δ catastrophic misses", True, -1),
     ]
     models = list(gen)
-    colors = [LADDER[4], CAT[1]]
+    colors = [LADDER[4], CAT[1], CAT[2]][: len(models)]
     fig, axes = plt.subplots(1, 4, figsize=(13, 2.9))
     for ax, (key, title, pct, better) in zip(axes, panels, strict=True):
         for i, (m, c) in enumerate(zip(models, colors, strict=True)):
