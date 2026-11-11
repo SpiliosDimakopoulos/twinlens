@@ -5,7 +5,7 @@ describe("tokenText", () => {
   it("keeps whitespace visible", () => {
     expect(tokenText("\n    return")).toBe(String.raw`\n    return`);
     expect(tokenText(" Paris")).toBe(" Paris");
-    expect(tokenText("<|endoftext|>")).toBe("BOS");
+    expect(tokenText("<|endoftext|>")).toBe("‹start›");
   });
 });
 
@@ -26,7 +26,7 @@ describe("trustBand", () => {
 
 describe("verdict", () => {
   it("calls out overstatement, sign flips and agreement", () => {
-    expect(verdict(-2.03, -0.1)).toBe("The graph predicts −2.03. GPT-2 moves −0.10: overstated 20×.");
+    expect(verdict(-2.03, -0.1)).toBe("The graph predicts −2.03. GPT-2 actually moves −0.10: the graph overstates the effect 20×.");
     expect(verdict(0.5, -0.4)).toMatch(/opposite direction/);
     expect(verdict(-0.5, -0.45)).toMatch(/about right/);
     expect(verdict(0.001, 0.002)).toMatch(/Neither/);

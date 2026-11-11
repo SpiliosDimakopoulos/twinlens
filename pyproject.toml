@@ -1,38 +1,69 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "twinlens"
-version = "0.1.0"
+version = "1.0.0"
 description = "A digital twin of an LLM's internals that measures how far its own explanations can be trusted."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Spilios Dimakopoulos" }]
+keywords = ["interpretability", "mechanistic-interpretability", "transcoders", "gpt-2", "faithfulness", "explanations", "llm"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
   "torch>=2.2",
-  "numpy",
-  "tokenizers",
-  "huggingface_hub",
-  "pandas",
-  "pydantic>=2",
-  "fastapi",
-  "uvicorn[standard]",
+  "numpy>=1.26",
+  "tokenizers>=0.19",
+  "huggingface_hub>=0.23",
+  "pandas>=2.1",
+  "pydantic>=2.5",
 ]
 
+[project.urls]
+Homepage = "https://spiliosdimakopoulos.github.io/twinlens/"
+Source = "https://github.com/SpiliosDimakopoulos/twinlens"
+Issues = "https://github.com/SpiliosDimakopoulos/twinlens/issues"
+Citation = "https://doi.org/10.5281/zenodo.23437556"
+
+[project.scripts]
+twinlens = "twinlens.cli:main"
+
 [project.optional-dependencies]
-dev = ["pytest", "pytest-timeout", "httpx", "ruff", "mypy", "matplotlib", "pyarrow", "psutil", "transformers"]
+server = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
+dev = ["twinlens[server]", "pytest", "pytest-timeout", "httpx", "ruff", "matplotlib", "pyarrow", "scipy", "psutil", "transformers"]
 
 [tool.setuptools.packages.find]
 include = ["twinlens*", "server*"]
+
+[tool.setuptools.package-data]
+twinlens = ["fidelity/trust_model.json"]  # so `pip install` users get the trust score
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
-ignore = ["E741"]  # `l` for layer is the field convention
+select = ["E", "F", "I", "B", "UP", "SIM", "C4", "RUF", "PT"]
+ignore = [
+  "E741",    # `l` for layer is the field convention
+  "PT018",   # composite asserts in tests (7 hits); split later
+  "RUF001",  # intentional unicode (e.g. minus, arrows) in strings (4 hits)
+  "RUF002",  # same, in docstrings (3 hits)
+  "RUF005",  # [a] + b style (2 hits); fix later
+  "RUF007",  # zip(x, x[1:]) (1 hit); fix later
+  "C416",    # identity comprehensions (3 hits); fix later
+  "RUF100",  # one stale noqa (1 hit); fix later
+]
 
 [tool.ruff.lint.per-file-ignores]
 "experiments/build_report.py" = ["E501"]  # embedded CSS
@@ -41,3 +72,6 @@ ignore = ["E741"]  # `l` for layer is the field convention
 testpaths = ["tests"]
 addopts = "-m 'not slow and not qwen'"
 markers = ["slow: needs extra RAM (HF parity)", "qwen: needs the prepared Qwen3 transcoders (~7 GB)"]
+
+[tool.ruff.format]
+quote-style = "double"

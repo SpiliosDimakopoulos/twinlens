@@ -6,7 +6,7 @@ const GAP = "svg[aria-label^='Predicted change at each twin level']";
 const pause = (page: Page, ms: number) => page.waitForTimeout(ms);
 
 test("tour", async ({ page }) => {
-  await page.goto("./?p=2&f=0-3-5545");
+  await page.goto("./?p=2&f=0-2-5545");
   await page.locator(GAP).waitFor();
   await pause(page, 2600);
   await page.locator(GRAPH).scrollIntoViewIfNeeded();
@@ -21,11 +21,11 @@ test("tour", async ({ page }) => {
   await page.mouse.move(20, 20);
   await page.getByRole("button", { name: "2×" }).click();
   await pause(page, 1800);
-  await page.getByRole("button", { name: "Ablate" }).click();
+  await page.getByRole("button", { name: "Off" }).click();
   await pause(page, 2200);
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
   await pause(page, 900);
-  await page.getByRole("tab").first().click();
+  await page.getByRole("group", { name: "Example prompts" }).getByRole("button").first().click();
   await page.locator(GAP).waitFor();
   await pause(page, 1200);
   await page.locator(GRAPH).scrollIntoViewIfNeeded();

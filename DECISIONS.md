@@ -14,7 +14,7 @@ free commit memory while other applications are running.
 **Decision.** `twinlens/core/gpt2.py` implements GPT-2 in about 250 lines of PyTorch, using
 TransformerLens hook names. `twinlens/core/weights.py` memory-maps safetensors files, so the
 weights are served from the OS page cache and never copied.
-**Result.** Load plus a full activation cache uses **0.81 GB** of private memory. Logits match HF
+**Result.** Load plus a full activation cache uses **0.81 GB** of private memory (0.82 GB in the later benchmark, `bench/latency.json`). Logits match HF
 `GPT2LMHeadModel` to a max abs diff of 6.9e-5. Speed matches HF (~170 ms per forward pass for
 15 tokens on this CPU).
 
@@ -41,7 +41,11 @@ relative to mean-ablating the MLP:
 
 The twin is good but imperfect. That gap is exactly what the fidelity study measures.
 
-## D3. Three levels of "twin", from cheapest to most faithful
+## D3. Three levels of "twin", from cheapest to most faithful (first design)
+
+*Superseded: the study uses five twin levels plus two linear fixes; see §3 of the report. Kept
+as the record of the original design.*
+
 1. **Linear twin** (attribution graph). Attention patterns and LN scales are frozen, MLPs are
    replaced by transcoders plus error terms, and effects propagate linearly. Cheapest, and
    what attribution-graph UIs show.

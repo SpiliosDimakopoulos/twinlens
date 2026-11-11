@@ -1,5 +1,6 @@
+import type React from "react";
 import type { ReactNode } from "react";
-import { useTooltip } from "./Tooltip";
+import { useTooltip } from "./useTooltip";
 
 type Props = {
   rows: number;
@@ -57,7 +58,12 @@ export function Heatmap({
               onMouseMove={(e) => tooltip && show(e, tooltip(r, c))}
               onMouseLeave={hide}
               onClick={() => onClick?.(r, c)}
-              style={{ cursor: onClick ? "pointer" : "default" }}
+              {...(onClick ? {
+                role: "button", tabIndex: 0, className: "heat-cell",
+                "aria-label": `${rowLabel?.(r) ?? r} ${colLabel?.(c) ?? c}`,
+                onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(r, c); } },
+              } : {})}
+              style={{ cursor: onClick ? "pointer" : "default", outline: "none" }}
             >
               <rect x={x + 1} y={y + 1} width={cell - 2} height={cell - 2} rx={3} fill={color(r, c)} />
               {isOut && (

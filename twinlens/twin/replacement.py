@@ -30,13 +30,14 @@ ones), which is what makes 164k-feature transcoders usable on a CPU.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, NamedTuple
 
 import torch
 
-from twinlens.core.gpt2 import GPT2
-from twinlens.twin.transcoders import TranscoderSet
+from twinlens.core.gpt2 import GPT2, HookFn
+from twinlens.twin.transcoders import QwenTranscoderSet, TranscoderSet
 
 Mode = Literal[
     "direct",
@@ -51,23 +52,31 @@ Mode = Literal[
     "real",
 ]
 
+Treatment = Literal["frozen", "jacobian", "live"]
+
+
+class Level(NamedTuple):
+    features: Literal["frozen", "gated", "relu"]
+    norms: Treatment
+    attention: Treatment
+
+
 # The twin "ladder": each level unfreezes one more component of the real model.
 # Normalisation scales and attention patterns are each "frozen" (clean values, as in attribution
 # graphs), "jacobian" (clean values plus their exact first-order change: the twin stays linear),
 # or "live" (recomputed).
-#                      features   norms        attention
-LEVELS: dict[str, tuple[str, str, str]] = {
-    "direct": ("frozen", "frozen", "frozen"),
-    "linear": ("gated", "frozen", "frozen"),
-    "replacement": ("relu", "frozen", "frozen"),
-    "replacement_ln": ("relu", "live", "frozen"),
-    "replacement_full": ("relu", "live", "live"),
+LEVELS: dict[Mode, Level] = {
+    "direct": Level("frozen", "frozen", "frozen"),
+    "linear": Level("gated", "frozen", "frozen"),
+    "replacement": Level("relu", "frozen", "frozen"),
+    "replacement_ln": Level("relu", "live", "frozen"),
+    "replacement_full": Level("relu", "live", "live"),
     # Proposed fixes: the graph twin, keeping the derivatives that attribution graphs drop.
-    "linear_lnjac": ("gated", "jacobian", "frozen"),
-    "linear_fulljac": ("gated", "jacobian", "jacobian"),
+    "linear_lnjac": Level("gated", "jacobian", "frozen"),
+    "linear_fulljac": Level("gated", "jacobian", "jacobian"),
     # References for testing the Jacobians (not linear).
-    "linear_lnlive": ("gated", "live", "frozen"),
-    "linear_live": ("gated", "live", "live"),
+    "linear_lnlive": Level("gated", "live", "frozen"),
+    "linear_live": Level("gated", "live", "live"),
 }
 TWIN_LEVELS: tuple[Mode, ...] = (
     "direct",
@@ -106,35 +115,41 @@ class CleanTrace:
     def n_pos(self) -> int:
         return self.tokens.shape[1]
 
-    @property
-    def pre(self) -> dict[int, torch.Tensor]:  # back-compat: only the sign is ever used
-        return self.acts
+
+def _freeze(clean: torch.Tensor) -> HookFn:
+    """Hook replacing an activation by its clean value (broadcast over the batch)."""
+    return lambda x, _: clean.expand_as(x)
+
+
+def _record(store: dict, key) -> HookFn:
+    """Hook saving the activation in ``store[key]`` without changing it."""
+    return lambda x, _: store.__setitem__(key, x)
 
 
 class Twin:
     def __init__(
         self,
         model: GPT2,
-        transcoders=None,
-        layers=None,
+        transcoders: TranscoderSet | QwenTranscoderSet | None = None,
+        layers: Iterable[int] | None = None,
         tc_hook: str | None = None,
         skip_first: bool | None = None,
     ):
         self.model = model
         self.tcs = transcoders or TranscoderSet(model.cfg.n_layers)
-        self.layers: list[int] = list(
-            layers if layers is not None else getattr(self.tcs, "layers", range(model.cfg.n_layers))
-        )
+        # Only the Qwen3 transcoder set covers a subset of layers (and has a ``layers`` list).
+        qwen = hasattr(self.tcs, "layers")
+        if layers is None:
+            layers = self.tcs.layers if qwen else range(model.cfg.n_layers)
+        self.layers: list[int] = list(layers)
         # Where the transcoder reads: GPT-2 transcoders read LayerNormPre(resid_mid) (no affine),
         # the Qwen3 ones read the RMSNorm output including its weight.
-        self.tc_hook = tc_hook or (
-            "hook_mlp_in" if hasattr(self.tcs, "layers") else "ln2.hook_normalized"
-        )
+        self.tc_hook = tc_hook or ("hook_mlp_in" if qwen else "ln2.hook_normalized")
         # Position 0 can never be changed by an edit (causal attention), so its MLP output is
         # constant and may live entirely in the error term. Qwen's first token is an attention
         # sink with a huge norm on which transcoders fire thousands of features; skipping it
         # is exact and keeps the twin sparse.
-        self.skip_first = skip_first if skip_first is not None else hasattr(self.tcs, "layers")
+        self.skip_first = skip_first if skip_first is not None else qwen
         self._labels: dict[tuple[int, int], list[str]] = {}
 
     # ------------------------------------------------------------------ tracing
@@ -206,64 +221,80 @@ class Twin:
             if e is not None:
                 by_layer.setdefault(e.layer, []).append((row, e))
 
-        hooks = []
         if mode == "real":
-            for l, items in by_layer.items():
-                rows = {e.feature: self.dec_row(trace, l, e.feature) for _, e in items}
-
-                def edit_out(
-                    out: torch.Tensor, _: str, items=items, l=l, rows=rows
-                ) -> torch.Tensor:
-                    out = out.clone()
-                    for row, e in items:
-                        out[row, e.pos] += (e.value - trace.acts[l][e.pos, e.feature]) * rows[
-                            e.feature
-                        ]
-                    return out
-
-                hooks.append((f"blocks.{l}.hook_mlp_out", edit_out))
+            hooks = self._real_hooks(trace, by_layer)
         else:
-            features, ln_mode, attn_mode = LEVELS[mode]
-            if ln_mode != "live":
-                for name, s in trace.scales.items():
-                    hooks.append((name, lambda x, _, s=s: s.expand_as(x)))
-            if ln_mode == "jacobian":
-                # n(u) = u / sigma(u) linearised at the clean point n0 = u0 / sigma0:
-                #   dn = da - n0 (n0 . da) / d,  with a = u / sigma0 (frozen-scale output).
-                # Same for LayerNorm (u centred) and RMSNorm (u = x); per head for QK-norm.
-                for name, n0 in trace.normalized.items():
-
-                    def ln_jac(a: torch.Tensor, _: str, n0=n0) -> torch.Tensor:
-                        da = a - n0
-                        return a - n0 * (da * n0).sum(-1, keepdim=True) / n0.shape[-1]
-
-                    hooks.append((name, ln_jac))
-            if attn_mode == "frozen":
-                for l in range(m.cfg.n_layers):
-                    pat = trace.patterns[l]
-                    hooks.append(
-                        (f"blocks.{l}.attn.hook_pattern", lambda x, _, p=pat: p.expand_as(x))
-                    )
-            elif attn_mode == "jacobian":
-                hooks += self._attn_jacobian_hooks(trace)
-            store: dict[int, torch.Tensor] = {}
-            for l in range(start, m.cfg.n_layers):
-                if l not in self.layers:
-                    continue  # no transcoder: the real MLP stays (only above the first twin layer)
-                if features != "frozen":
-                    # The transcoder input hook already reflects the level's norm treatment.
-                    hooks.append(
-                        (f"blocks.{l}.{self.tc_hook}", lambda x, _, l=l: store.__setitem__(l, x))
-                    )
-                hooks.append(
-                    (
-                        f"blocks.{l}.hook_mlp_out",
-                        self._twin_mlp(trace, features, l, store, by_layer.get(l, [])),
-                    )
-                )
-
+            hooks = self._twin_hooks(trace, LEVELS[mode], start, by_layer)
         with m.hooks(hooks):
             return m(tokens, last_only=True)[:, -1]
+
+    def _edit_deltas(
+        self, trace: CleanTrace, l: int, items: list[tuple[int, FeatureEdit]]
+    ) -> Callable[[torch.Tensor], torch.Tensor]:
+        """In place: ``out[row, pos] += (new - clean) * W_dec[f]`` for each edit at layer ``l``."""
+        clean_acts = trace.acts[l]
+        rows = {e.feature: self.dec_row(trace, l, e.feature) for _, e in items}
+
+        def add(out: torch.Tensor) -> torch.Tensor:
+            for row, e in items:
+                out[row, e.pos] += (e.value - clean_acts[e.pos, e.feature]) * rows[e.feature]
+            return out
+
+        return add
+
+    def _real_hooks(
+        self, trace: CleanTrace, by_layer: dict[int, list[tuple[int, FeatureEdit]]]
+    ) -> list[tuple[str, HookFn]]:
+        def edit_out(add: Callable[[torch.Tensor], torch.Tensor]) -> HookFn:
+            return lambda out, _: add(out.clone())
+
+        return [
+            (f"blocks.{l}.hook_mlp_out", edit_out(self._edit_deltas(trace, l, items)))
+            for l, items in by_layer.items()
+        ]
+
+    def _twin_hooks(
+        self,
+        trace: CleanTrace,
+        level: Level,
+        start: int,
+        by_layer: dict[int, list[tuple[int, FeatureEdit]]],
+    ) -> list[tuple[str, HookFn]]:
+        m = self.model
+        hooks: list[tuple[str, HookFn]] = []
+        if level.norms != "live":
+            for name, s in trace.scales.items():
+                hooks.append((name, _freeze(s)))
+        if level.norms == "jacobian":
+            # n(u) = u / sigma(u) linearised at the clean point n0 = u0 / sigma0:
+            #   dn = da - n0 (n0 . da) / d,  with a = u / sigma0 (frozen-scale output).
+            # Same for LayerNorm (u centred) and RMSNorm (u = x); per head for QK-norm.
+            for name, n0 in trace.normalized.items():
+
+                def ln_jac(a: torch.Tensor, _: str, n0=n0) -> torch.Tensor:
+                    da = a - n0
+                    return a - n0 * (da * n0).sum(-1, keepdim=True) / n0.shape[-1]
+
+                hooks.append((name, ln_jac))
+        if level.attention == "frozen":
+            for l in range(m.cfg.n_layers):
+                hooks.append((f"blocks.{l}.attn.hook_pattern", _freeze(trace.patterns[l])))
+        elif level.attention == "jacobian":
+            hooks += self._attn_jacobian_hooks(trace)
+        store: dict[int, torch.Tensor] = {}
+        for l in range(start, m.cfg.n_layers):
+            if l not in self.layers:
+                continue  # no transcoder: the real MLP stays (only above the first twin layer)
+            if level.features != "frozen":
+                # The transcoder input hook already reflects the level's norm treatment.
+                hooks.append((f"blocks.{l}.{self.tc_hook}", _record(store, l)))
+            hooks.append(
+                (
+                    f"blocks.{l}.hook_mlp_out",
+                    self._twin_mlp(trace, level.features, l, store, by_layer.get(l, [])),
+                )
+            )
+        return hooks
 
     def _attn_jacobian_hooks(self, trace: CleanTrace) -> list:
         """First-order expansion of attention around the clean run:
@@ -276,9 +307,7 @@ class Twin:
             p0 = trace.patterns[l]
             cur: dict[str, torch.Tensor] = {}
             for x in "qkv":
-                hooks.append(
-                    (f"blocks.{l}.attn.hook_{x}", lambda t, _, c=cur, x=x: c.__setitem__(x, t))
-                )
+                hooks.append((f"blocks.{l}.attn.hook_{x}", _record(cur, x)))
 
             def pattern(_p: torch.Tensor, _: str, c=cur, q0=q0, k0=k0, p0=p0) -> torch.Tensor:
                 dq, dk = c["q"] - q0, c["k"] - k0
@@ -304,12 +333,7 @@ class Twin:
         """
         tc = self.tcs[l]
         clean_acts = trace.acts[l]
-        edit_rows = {e.feature: self.dec_row(trace, l, e.feature) for _, e in items}
-
-        def edit_deltas(out: torch.Tensor) -> torch.Tensor:
-            for row, e in items:
-                out[row, e.pos] += (e.value - clean_acts[e.pos, e.feature]) * edit_rows[e.feature]
-            return out
+        edit_deltas = self._edit_deltas(trace, l, items)
 
         if features == "frozen":
             return lambda out, _: edit_deltas(trace.mlp_out[l].expand_as(out).clone())
@@ -332,6 +356,10 @@ class Twin:
 
         def replacement_fn(out: torch.Tensor, _: str) -> torch.Tensor:
             acts = torch.relu(tc.pre(store[l]))
+            if self.skip_first:
+                # trace() put the whole position-0 output in the error term; re-encoding it
+                # here would count it twice.
+                acts[:, 0] = 0
             for row, e in items:
                 acts[row, e.pos, e.feature] = e.value
             idx = acts.flatten(0, 1).any(0).nonzero()[:, 0]
@@ -407,20 +435,18 @@ class Twin:
         leaves = {
             l: trace.acts[l][:, trace.active[l]].clone().requires_grad_(True) for l in self.layers
         }
-        hooks = [(n, lambda x, _, s=s: s.expand_as(x)) for n, s in trace.scales.items()]
+
+        def leaf_mlp(l: int) -> HookFn:
+            def hook(x: torch.Tensor, _: str) -> torch.Tensor:
+                return (leaves[l] @ trace.dec[l] + self.tcs[l].b_dec + trace.error[l][0])[None]
+
+            return hook
+
+        hooks = [(n, _freeze(s)) for n, s in trace.scales.items()]
         for l in range(m.cfg.n_layers):
-            hooks.append(
-                (f"blocks.{l}.attn.hook_pattern", lambda x, _, p=trace.patterns[l]: p.expand_as(x))
-            )
+            hooks.append((f"blocks.{l}.attn.hook_pattern", _freeze(trace.patterns[l])))
         for l in self.layers:
-            hooks.append(
-                (
-                    f"blocks.{l}.hook_mlp_out",
-                    lambda x, _, l=l: (
-                        leaves[l] @ trace.dec[l] + self.tcs[l].b_dec + trace.error[l][0]
-                    )[None],
-                )
-            )
+            hooks.append((f"blocks.{l}.hook_mlp_out", leaf_mlp(l)))
         with torch.enable_grad(), m.hooks(hooks):
             logits = m(trace.tokens, last_only=True)
             return target_fn(logits), leaves

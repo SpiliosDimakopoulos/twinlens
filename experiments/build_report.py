@@ -8,15 +8,23 @@ that page by ``web/scripts/report-pdf.mjs``.
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
-from pathlib import Path
 
 import markdown
+from common import FIGS, ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "web" / "public" / "report"
 REPO = "https://github.com/SpiliosDimakopoulos/twinlens"
+SITE = "https://spiliosdimakopoulos.github.io/twinlens/"
+DOI = "10.5281/zenodo.23437556"
+DESC = (
+    "Do attribution graphs predict what a language model really does? 8,064 feature "
+    "interventions on GPT-2 small: the graph's frozen LayerNorm and attention cause most errors, "
+    "and keeping their Jacobians makes the linear graph match the nonlinear model. "
+    "Replicated on Qwen3-0.6B."
+)
 
 CSS = """
 :root { color-scheme: light; --bg:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
@@ -82,7 +90,7 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     figs = OUT / "figures"
     figs.mkdir(exist_ok=True)
-    for png in (ROOT / "experiments" / "figures").glob("*.png"):
+    for png in FIGS.glob("*.png"):
         shutil.copy2(png, figs / png.name)
 
     md = (ROOT / "paper" / "REPORT.md").read_text(encoding="utf-8")
@@ -96,12 +104,38 @@ def main() -> None:
     )
     body = markdown.markdown(md, extensions=["tables", "fenced_code", "sane_lists"])
     title = re.search(r"^# (.+)$", md, re.M).group(1)
+    ld = {
+        "@context": "https://schema.org",
+        "@type": "ScholarlyArticle",
+        "headline": title,
+        "name": title,
+        "author": {"@type": "Person", "name": "Spilios Dimakopoulos"},
+        "datePublished": "2026-10-17",
+        "description": DESC,
+        "identifier": f"https://doi.org/{DOI}",
+        "url": f"{SITE}report/",
+        "isBasedOn": REPO,
+        "keywords": "mechanistic interpretability, attribution graphs, transcoders, faithfulness",
+        "license": "https://opensource.org/licenses/MIT",
+    }
+    LDJSON = json.dumps(ld).replace("</", "<\/")
     html = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TwinLens report</title>
-<meta property="og:type" content="website" />
-<meta property="og:title" content="TwinLens report" />
+<title>{title} | TwinLens report</title>
+<link rel="canonical" href="{SITE}report/">
+<!-- Google Scholar (Highwire Press) tags: let Scholar index this report and its PDF. -->
+<meta name="citation_title" content="{title}">
+<meta name="citation_author" content="Dimakopoulos, Spilios">
+<meta name="citation_publication_date" content="2026/10/17">
+<meta name="citation_technical_report_institution" content="TwinLens project">
+<meta name="citation_doi" content="{DOI}">
+<meta name="citation_pdf_url" content="{SITE}report/TwinLens_report.pdf">
+<meta name="citation_abstract_html_url" content="{SITE}report/">
+<meta name="citation_keywords" content="mechanistic interpretability; attribution graphs; transcoders; circuit tracing; faithfulness; GPT-2; LayerNorm; attention">
+<script type="application/ld+json">{LDJSON}</script>
+<meta property="og:type" content="article" />
+<meta property="og:title" content="{title}" />
 <meta property="og:description" content="Attribution graphs drop two derivatives. Restoring them keeps the graph linear and lifts counterfactual accuracy from rho 0.20 to 0.53 on GPT-2, replicated on Qwen3-0.6B." />
 <meta property="og:url" content="https://spiliosdimakopoulos.github.io/twinlens/report/" />
 <meta property="og:image" content="https://spiliosdimakopoulos.github.io/twinlens/og.png" />
@@ -109,7 +143,7 @@ def main() -> None:
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="https://spiliosdimakopoulos.github.io/twinlens/og.png" />
-<meta name="description" content="{title}">
+<meta name="description" content="{DESC}">
 <style>{CSS}</style></head>
 <body>
 <nav><a href="../">← Live demo</a><a href="TwinLens_report.pdf">PDF</a><a href="{REPO}">Code on GitHub</a></nav>

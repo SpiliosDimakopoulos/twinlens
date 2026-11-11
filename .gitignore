@@ -18,3 +18,14 @@ spike/pytest.log
 experiments/results/raw_ext_*/
 web/e2e-static/screens/
 upstream/
+build/
+dist/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+.DS_Store
+web/dist-static/
+web/*.tsbuildinfo
+.burst_job.sh
+out/

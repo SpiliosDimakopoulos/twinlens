@@ -1,161 +1,159 @@
 # TwinLens
 
-[![ci](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml/badge.svg)](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml) [![live demo](https://img.shields.io/badge/live%20demo-open-2a78d6)](https://spiliosdimakopoulos.github.io/twinlens/) [![report](https://img.shields.io/badge/report-PDF-1baf7a)](docs/TwinLens_report.pdf) ![license](https://img.shields.io/badge/license-MIT-blue) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23437556.svg)](https://doi.org/10.5281/zenodo.23437556) [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/SpiliosDimakopoulos/twinlens/blob/main/notebooks/reproduce_headline.ipynb)
+[![ci](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml/badge.svg)](https://github.com/SpiliosDimakopoulos/twinlens/actions/workflows/ci.yml) [![live demo](https://img.shields.io/badge/live%20demo-open-2a78d6)](https://spiliosdimakopoulos.github.io/twinlens/) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23437556.svg)](https://doi.org/10.5281/zenodo.23437556) [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/SpiliosDimakopoulos/twinlens/blob/main/notebooks/audit_your_prompt.ipynb)
 
-**A digital twin of GPT-2's internals that tells you how far to trust its own explanations, and
-a fix that makes those explanations faithful.**
+**Do attribution graphs predict what a language model actually does?** An attribution graph
+explains a prediction with arrows: "this internal feature pushes the answer up by this much".
+TwinLens tests those arrows. For each one it switches the feature off in GPT-2 and compares the
+graph's predicted effect with the real one.
 
-**[▶ Open the live demo](https://spiliosdimakopoulos.github.io/twinlens/)**: it runs in the browser, nothing to install.
-**[Read the report](https://spiliosdimakopoulos.github.io/twinlens/report/)** ([PDF](docs/TwinLens_report.pdf)).
+On 8,064 such edits the graph is often wrong, sometimes in the opposite direction. Most of the
+error comes from two parts of the model that the graph holds fixed, LayerNorm and attention.
+Adding their first-order response back keeps the graph linear and raises its rank agreement
+with GPT-2 from ρ = 0.20 to 0.53. The result replicates on Qwen3-0.6B.
 
-Attribution graphs explain an LLM through an interpretable *replacement model*, a "twin" of the
-real network. TwinLens runs that twin side by side with the real GPT-2. Click any feature in the
-reasoning graph and:
+![IOI: the attribution graph predicts the edit lowers log p(Mary) by 8.1; GPT-2 actually raises it by 0.23; the graph with the fix predicts +0.32](docs/screenshots/hero.png)
 
-1. the twin **predicts** what turning the feature off or up will do, at five levels of
-   approximation, plus the proposed fix;
-2. the real model **answers**;
-3. a trust score, computed *before* the real model runs, tells you whether to believe the graph.
+*In the IOI prompt above, today's attribution graph predicts that switching off one feature
+lowers the probability of "Mary" by 8.1 nats. GPT-2 actually raises it by 0.23. The same linear
+graph with the two derivatives restored predicts +0.32.*
 
-[![TwinLens landing page: the finding and its three numbers](docs/screenshots/landing.png)](https://spiliosdimakopoulos.github.io/twinlens/)
+## Try it
 
-![IOI: the attribution graph predicts the edit lowers log p(Mary) by 8.1; GPT-2 actually raises it by 0.23; the fixed graph predicts +0.32](docs/screenshots/hero.png)
+**In the browser:** the [live demo](https://spiliosdimakopoulos.github.io/twinlens/) runs on
+precomputed GPT-2 runs. Click a dot in the graph and compare each prediction with what GPT-2 did.
 
-*In the IOI prompt above, the standard attribution graph predicts that this feature edit
-**lowers** the answer by 8.1 nats. GPT-2 actually **raises** it by 0.23. The same linear graph
-with the two derivatives restored predicts +0.32.*
+**On your own prompt, in Colab:** [`notebooks/audit_your_prompt.ipynb`](https://colab.research.google.com/github/SpiliosDimakopoulos/twinlens/blob/main/notebooks/audit_your_prompt.ipynb)
+(free CPU runtime, about five minutes including downloads).
 
-<details><summary>▶ 25-second tour (GIF)</summary>
+**From a terminal:**
 
-![Tour of the live demo](docs/demo.gif)
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu   # CPU build, ~200 MB
+pip install "twinlens @ git+https://github.com/SpiliosDimakopoulos/twinlens"
+twinlens audit "When Mary and John went to the store, John gave a drink to"
+```
 
-</details>
+The first run downloads GPT-2 small (0.5 GB) and its 12 transcoders (1.8 GB) from the Hugging
+Face Hub into `~/.cache/twinlens` (set `TWINLENS_CACHE` to move it). `twinlens audit` checks the
+strongest arrows of the graph and prints one row per arrow:
 
-## Headline results
-From 8,064 interventions on GPT-2 small; full write-up in [`paper/REPORT.md`](paper/REPORT.md) ([web](https://spiliosdimakopoulos.github.io/twinlens/report/), [PDF](docs/TwinLens_report.pdf)).
+```
+layer word         feature    graph    fixed    GPT-2  graph verdict   fixed verdict   trust
+    0  Mary           5545   -8.117   +0.318   +0.228  WRONG SIGN      ok                 7%
+   10  to            13585   +0.014   +0.031   +0.032  understated     ok                98%
+    7  Mary          12771   -0.186   +0.032   +0.034  WRONG SIGN      ok                81%
+  ...
+Today's graph is off on 3 of 8 edges; with the fix, 0 of 8.
+```
 
-| | |
-|---|---|
-| **Attribution graphs are weak counterfactual predictors** | the graph twin's rank correlation with the real effect is ρ = **0.20**; on edits that measurably move the output it is within tolerance only **54%** of the time (IOI: ρ = 0.01) |
-| **The cause is two dropped derivatives** | frozen LayerNorm causes **88%** of the error and nearly all catastrophic misses; frozen attention causes the ranking errors |
-| **The fix keeps the graph linear** | restoring the LayerNorm and attention-pattern Jacobians gives a still-linear graph that matches the nonlinear twin: ρ **0.20 → 0.53**, sign agreement **67% → 86%**, catastrophic misses **2.2% → 0.05%**, IOI **0.01 → 0.59**; replicates on **Qwen3-0.6B** (different architecture): paired Δρ **+0.12**, catastrophic misses **3.0% → 0.8%** |
-| **The twin knows when it is wrong** | a trust model predicts, from the clean run alone, when a graph prediction will fail: AUROC **0.93** on held-out prompts *and* on held-out task families; on the edges users inspect it lifts graph accuracy from 54% to 71% |
-| **Upstreamed** | the fix is submitted to the open-source [circuit-tracer](https://github.com/decoderesearch/circuit-tracer) as opt-in `freeze_attention` / `freeze_layernorm` flags on `attribute()`, with finite-difference correctness tests: [PR #123](https://github.com/decoderesearch/circuit-tracer/pull/123) |
+- **graph**: today's attribution graph (LayerNorm and attention frozen);
+- **fixed**: the same linear graph with the LayerNorm and attention derivatives kept;
+- **GPT-2**: the real model with the edit applied;
+- numbers are the change in log-probability of GPT-2's answer (−1 ≈ 2.7× less likely);
+- **trust** estimates, from the unedited run only, how likely the graph's number is to be close.
+  It was fitted on ablations and ×2 edits of this study's prompts; treat it as a warning light,
+  not a probability you can bank on.
+
+Add `--json` for machine-readable output and `--top 20` for more arrows.
+
+## Results
+
+From 8,064 edits on GPT-2 small (56 prompts, 8 task families). Full write-up:
+[report](https://spiliosdimakopoulos.github.io/twinlens/report/) ([PDF](docs/TwinLens_report.pdf)).
+
+| | today's graph | gradient through real GPT-2 | with the fix |
+|---|---|---|---|
+| rank agreement with the real effect (Spearman ρ) | 0.20 | 0.38 | 0.53 |
+| right direction, on edits that move the answer | 67% | 77% | 86% |
+| badly wrong (off by more than 1 nat) | 2.2% | 0.1% | 0.05% |
+
+- **Why the graph fails.** Frozen LayerNorm causes most of the error and nearly all large
+  misses, almost all of them for edits in the first three layers. Frozen attention causes most
+  of the ranking error.
+- **The fix.** Keeping the LayerNorm and attention-softmax Jacobians gives a graph that is still
+  linear and matches the nonlinear twin. It also ranks and signs effects better than attribution
+  patching, a gradient through the real model (Δρ +0.15 [0.11, 0.19]). On Qwen3-0.6B the gain
+  over today's graph is smaller but holds on every metric (Δρ +0.12 [0.05, 0.20]). IOI prompts
+  go from ρ 0.01 to 0.59.
+- **Spotting bad predictions.** A logistic model over nine signals from the unedited run flags
+  failures with AUROC 0.84 on edits that move the answer. Disagreement between today's graph
+  and the fixed graph is an even better warning (0.94).
+- **Upstream.** The fix is proposed to the open-source
+  [circuit-tracer](https://github.com/decoderesearch/circuit-tracer) library as opt-in flags
+  ([PR #123](https://github.com/decoderesearch/circuit-tracer/pull/123), under review).
 
 <p>
   <img src="experiments/figures/F5_fix.png" width="100%" alt="Keeping two derivatives makes the linear graph as faithful as the nonlinear twin">
 </p>
 
-<p>
-  <img src="experiments/figures/F1_ladder.png" width="49%" alt="Twin ladder metrics">
-  <img src="experiments/figures/F4_trust.png" width="49%" alt="Trust model AUROC and calibration">
-</p>
+## Limitations
 
-## What's inside
+- Two small models (GPT-2 small; Qwen3-0.6B, upper 18 layers only) and per-layer transcoders.
+  Cross-layer transcoders, used by the current circuit-tracing work, are untested.
+- 56 short prompts written by the author; one prediction target per prompt.
+- Only feature-to-output effects are measured, not feature-to-feature edges.
+- Most edits change the answer very little; the rank and sign results are the robust ones.
 
-**The measuring instrument is validated first.** A from-scratch, hookable GPT-2 in PyTorch
-(logits match Hugging Face to 7e-5) reproduces published circuits, and each one is pinned in the
-test suite:
-- **Induction heads** (Olsson et al., 2022): 5.1, 5.5, 6.9, 7.2, 7.10, the exact top 5.
-- **IOI name movers and negative name movers** (Wang et al., 2022): 9.9, 9.6, 10.0 and 10.7,
-  11.10.
-- **The early and late sites of factual recall** (Meng et al., 2022).
+Details and the remaining caveats are in §5 of the [report](https://spiliosdimakopoulos.github.io/twinlens/report/).
 
-**The twin ladder.** The same hook machinery runs five twins plus the real model:
-1. direct edges;
-2. linear attribution graph;
-3. local replacement model;
-4. \+ live LayerNorm;
-5. \+ live attention.
+## How it works
 
-Each step unfreezes one component, so every error is attributed to its source.
+GPT-2 runs on a ~250-line PyTorch implementation with hook points
+([`twinlens/core/gpt2.py`](twinlens/core/gpt2.py)); its logits match Hugging Face to 7×10⁻⁵.
+Before measuring anything new it reproduces known GPT-2 circuits (induction heads, the IOI name
+movers, the sites of factual recall), each pinned as a test. MLPs are replaced by the
+transcoders of Dunefsky, Chlenski & Nanda (2024) plus a fixed error term, and five twin levels
+switch one part of the real model back on at a time, so every gap is attributed to its source.
 
-**A live dashboard** (React + TypeScript + FastAPI):
-- **Twin:** the reasoning-path graph, the what-if ladder with the trust meter, and live token
-  streaming that shows the layer at which each token was "decided".
-- **Internals:** logit lens, attention patterns, and per-head attribution with click-to-ablate.
-- **Fidelity study:** the research results, interactive.
-- **Reproductions:** the published circuits, computed live.
-
-| Internals | Fidelity study |
-|---|---|
-| ![Internals](docs/screenshots/internals.png) | ![Study](docs/screenshots/study.png) |
-
-<p>
-  <img src="docs/screenshots/twin-dark.png" width="72%" alt="Dark theme">
-  <img src="docs/screenshots/mobile.png" width="22%" alt="Phone layout">
-</p>
-
-**Design.** Editorial rather than dashboard:
-- Newsreader + IBM Plex type, paper and ink, and numbered figure plates.
-- A signature *gap plot* that puts every twin's prediction on one axis against GPT-2's answer.
-- Written readings generated from the data, e.g. "the graph predicts −8.12, GPT-2 moves +0.23:
-  the opposite direction".
-
-**UX details.**
-- A prompt is traced as soon as the page opens, and the strongest feature is already simulated,
-  so there is no empty first screen.
-- Every view is a shareable link (`?p=2&f=0-3-5545&m=2`). Keyboard: <kbd>←</kbd>/<kbd>→</kbd>
-  step through features and <kbd>[</kbd>/<kbd>]</kbd> change specimen.
-- Each what-if comes with a plain-language verdict ("the graph overstates the effect 21×") and
-  the three signals that drove its trust score.
-- Hovering a node isolates it in the graph, and every node can be reached with the keyboard.
-- Light, dark and system themes; the layout works at phone width; reduced motion is respected.
-
-## Quickstart
-
-```bash
-python -m venv .venv && .venv/Scripts/activate      # Windows; use bin/activate elsewhere
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -e ".[dev]"
-cd web && npm ci && cd ..
-
-make serve        # builds the dashboard; open http://localhost:8000
-make test         # 33 Python tests (unit, reproduction, twin invariants, API)
-make web-test     # type-check + vitest
-make e2e          # 7 Playwright tests: flows, keyboard, dark mode, phone width (needs `make serve`)
-make analyze      # re-derive every number in the report from the committed sweep data
-```
-
-On first use the app downloads GPT-2 small (0.5 GB) and the 12 transcoders (1.8 GB) from the
-Hugging Face Hub. Docker: `docker compose up`.
-
-## Engineering notes
-
-- **Runs in < 1 GB of RAM on a laptop CPU.** Importing TransformerLens brought the process to
-  1.4 GB before any model was loaded, which left no room on the target machine. So the model is ~250 lines of PyTorch, and weights
-  and transcoders are memory-mapped: served from the OS page cache, never copied
-  ([`DECISIONS.md`](DECISIONS.md)).
-- **Sparse transcoder compute.** Only the active columns are computed (~66 of 24,576 per
-  token), so the five twin simulations of one what-if take about 1.6 s together on CPU.
-- **Correctness by invariants.** Tests check that:
-  - every twin level reproduces the clean run exactly;
-  - the linear twin is affine;
-  - gradient × activation attribution equals the direct-path simulation;
-  - DLA sums to the logit.
+Weights and transcoders are memory-mapped, so the whole system runs in 0.82 GB of RAM on a
+laptop CPU ([`DECISIONS.md`](DECISIONS.md)):
 
 | CPU latency (Ryzen 7 5700U, 15 tokens) | |
 |---|---|
 | forward pass | 194 ms |
 | twin trace (12 transcoders) | 1.0 s |
-| attribution (all features → logit) | 0.9 s |
-| what-if, graph twin / full twin | 0.17 s / 0.45 s |
-| peak private memory | 0.82 GB |
+| what-if, graph twin / nonlinear twin | 0.17 s / 0.45 s |
 
-## Layout
+## Run the dashboard locally
 
-```
-twinlens/core       hookable GPT-2, mmap safetensors
-twinlens/causal     interventions, activation patching, causal tracing, DLA, logit lens
-twinlens/circuits   datasets + published-circuit measurements
-twinlens/twin       transcoders, the twin ladder, attribution
-twinlens/fidelity   reliability signals, fidelity engine, trust model
-server/             FastAPI (REST + WebSocket streaming)
-web/                React + TypeScript dashboard, vitest, Playwright
-experiments/        sweep, analysis, figures, committed results
-paper/REPORT.md     the technical report
+```bash
+python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -e ".[dev]"
+cd web && npm ci && cd ..
+make serve                                           # http://localhost:8000
 ```
 
-## Limitations
-Two models (GPT-2 small; Qwen3-0.6B, upper 18 layers); a 56-prompt corpus. See §5 of the
-report.
+Locally the dashboard accepts any prompt. `docker compose up` does the same in a container.
+
+## Reproduce the paper
+
+The sweep's raw results are committed, so `make analyze` re-derives every number in the report
+in a few minutes without a model. Re-running the sweeps themselves is described in §7 of the
+report. `make test`, `make web-test` and `make e2e` run the test suites.
+
+```
+twinlens/      model, twin levels, interventions, fidelity metrics, trust model, CLI
+server/        FastAPI (REST + WebSocket)
+web/           React + TypeScript dashboard
+experiments/   sweeps, analysis, figures, committed results
+paper/         the technical report
+```
+
+## Cite
+
+```bibtex
+@techreport{dimakopoulos2026twinlens,
+  title       = {Attribution graphs fail because of the derivatives they drop, not because they are linear},
+  author      = {Dimakopoulos, Spilios},
+  year        = {2026},
+  institution = {TwinLens project},
+  doi         = {10.5281/zenodo.23437556},
+  url         = {https://github.com/SpiliosDimakopoulos/twinlens}
+}
+```
+
+## Contributing
+
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). MIT licence.

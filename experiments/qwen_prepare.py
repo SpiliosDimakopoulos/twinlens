@@ -11,17 +11,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import time
-from pathlib import Path
 
 import torch
+from common import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from twinlens.core.qwen3 import Qwen3  # noqa: E402
-from twinlens.twin.transcoders import CACHE_DIR, RemoteRowTranscoder  # noqa: E402
+from twinlens.core.qwen3 import Qwen3
+from twinlens.twin.transcoders import CACHE_DIR, RemoteRowTranscoder
 
 LAYERS = range(10, 28)
 STATE = CACHE_DIR / "twinlens" / "qwen-tc" / "prepared.json"

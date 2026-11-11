@@ -9,17 +9,17 @@ test("static demo: every specimen traces, what-ifs and presets work offline", as
   const failed: string[] = [];
   page.on("response", (r) => { if (r.status() >= 400) failed.push(r.url()); });
   await page.goto("./");
-  await expect(page.getByText(/Static demo with precomputed GPT-2 runs/)).toBeVisible();
+  await expect(page.getByText(/Demo with precomputed runs/)).toBeVisible();
   await expect(page.locator(GAP)).toBeVisible();
   await expect(page.getByText("PROPOSED FIX · STILL LINEAR")).toBeVisible();
-  const tabs = page.getByRole("tab");
+  const tabs = page.getByRole("group", { name: "Example prompts" }).getByRole("button");
   for (let i = 1; i < (await tabs.count()); i++) {
     await tabs.nth(i).click();
-    await expect(tabs.nth(i)).toHaveAttribute("aria-selected", "true");
+    await expect(tabs.nth(i)).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(GRAPH)).toBeVisible();
     await expect(page.locator(GAP)).toBeVisible();
   }
-  for (const preset of ["½×", "2×", "3×", "Ablate"]) {
+  for (const preset of ["½×", "2×", "3×", "Off"]) {
     await page.getByRole("button", { name: preset }).click();
     await expect(page.getByText("simulating…")).toBeHidden();
     await expect(page.locator(GAP)).toBeVisible();
@@ -33,10 +33,10 @@ test("static demo: every specimen traces, what-ifs and presets work offline", as
 });
 
 test("static demo: deep link opens the IOI hero example", async ({ page }) => {
-  await page.goto("./?p=2&f=0-3-5545");
+  await page.goto("./?p=2&f=0-2-5545");
   await expect(page.locator(GAP)).toBeVisible();
   await expect(page.getByText(/the opposite direction/)).toBeVisible();
-  await expect(page.getByRole("tab", { selected: true })).toContainText("Indirect object");
+  await expect(page.getByRole("group", { name: "Example prompts" }).getByRole("button", { pressed: true })).toContainText("Indirect object");
 });
 
 test("static demo: internals, study and reproductions load from precomputed data", async ({ page }) => {

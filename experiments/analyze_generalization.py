@@ -9,68 +9,47 @@ Differences are paired (same edits), with 95% cluster bootstraps over prompts.
 
 from __future__ import annotations
 
-import json
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
+from common import FIGS, RESULTS, update_summary
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "experiments"))
-sys.path.insert(0, str(ROOT))
+from twinlens.fidelity.metrics import (
+    CLIP,
+    add_derived,
+    cluster_bootstrap,
+    level_metrics,
+    within_tol,
+)
 
-from analyze import level_metrics  # noqa: E402
-
-RESULTS = ROOT / "experiments" / "results"
 LEVELS = ["direct", "linear", "linear_lnjac", "linear_fulljac"]
 METRICS = ["spearman", "sign_agree", "within_tol_big", "catastrophic", "mean_err_clipped"]
 MODELS = {
     "gpt2": ("GPT-2 small", "fidelity.parquet"),
     "qwen3": ("Qwen3-0.6B", "fidelity_qwen3.parquet"),
 }
-RNG = np.random.default_rng(0)
-
-
-def load(name: str) -> pd.DataFrame:
-    df = pd.read_parquet(RESULTS / name)
-    for lv in LEVELS:
-        err = (df[f"{lv}_dlogp"] - df.real_dlogp).abs()
-        df[f"{lv}_err"], df[f"{lv}_ok"], df[f"{lv}_catastrophic"] = (
-            err,
-            err <= 0.1 + 0.25 * df.real_dlogp.abs(),
-            err > 1,
-        )
-    df["real_big"] = df.real_dlogp.abs() > 0.05
-    return df
-
-
-def boot(df: pd.DataFrame, fn, n: int = 1000) -> dict[str, list[float]]:
-    groups = {k: g for k, g in df.groupby("prompt_id")}
-    ids = list(groups)
-    point = fn(df)
-    samples = [fn(pd.concat([groups[i] for i in RNG.choice(ids, len(ids))])) for _ in range(n)]
-    return {
-        k: [float(point[k]), *map(float, np.percentile([s[k] for s in samples], [2.5, 97.5]))]
-        for k in point
-    }
+SEED = 0  # one generator for both models, in this order: levels, then the paired difference
+BOOT_LEVELS = 500
+BOOT_PAIRED = 1000
 
 
 def main() -> None:
+    rng = np.random.default_rng(SEED)
     out = {}
     for key, (label, file) in MODELS.items():
-        df = load(file)
+        df = add_derived(pd.read_parquet(RESULTS / file), LEVELS)
         levels = {
-            lv: boot(df, lambda d, lv=lv: {m: level_metrics(d, lv)[m] for m in METRICS}, 500)
+            lv: cluster_bootstrap(
+                df, lambda d, lv=lv: level_metrics(d, lv, keys=METRICS), BOOT_LEVELS, rng
+            )
             for lv in LEVELS
         }
-        diff = boot(
-            df,
-            lambda d: {
-                m: level_metrics(d, "linear_fulljac")[m] - level_metrics(d, "linear")[m]
-                for m in METRICS
-            },
-        )
+
+        def paired(d: pd.DataFrame) -> dict[str, float]:
+            fixed = level_metrics(d, "linear_fulljac", keys=METRICS)
+            graph = level_metrics(d, "linear", keys=METRICS)
+            return {m: fixed[m] - graph[m] for m in METRICS}
+
+        diff = cluster_bootstrap(df, paired, BOOT_PAIRED, rng)
         fam = {
             str(c): {
                 lv: float(g[[f"{lv}_dlogp", "real_dlogp"]].corr(method="spearman").iloc[0, 1])
@@ -78,6 +57,7 @@ def main() -> None:
             }
             for c, g in df.groupby("category")
         }
+        zero_err = df[df.real_big].real_dlogp.abs()  # predicting "no change" has error |real|
         out[key] = {
             "label": label,
             "n_edits": len(df),
@@ -86,16 +66,26 @@ def main() -> None:
             "levels": levels,
             "paired_diff": diff,
             "by_category_spearman": fam,
+            "no_change": {
+                "within_tol_big": float(within_tol(err=zero_err, real=zero_err).mean()),
+                "mean_err_clipped": float(df.real_dlogp.abs().clip(upper=CLIP).mean()),
+                "n_big": int(df.real_big.sum()),
+            },
         }
         print(label, {m: [round(v, 3) for v in diff[m]] for m in METRICS})
-    summary_path = RESULTS / "summary.json"
-    summary = json.loads(summary_path.read_text())
-    summary["generalization"] = out
-    summary_path.write_text(json.dumps(summary, indent=2, default=float))
+    meta = {
+        "generalization": {
+            "seed": SEED,
+            "n_boot_levels": BOOT_LEVELS,
+            "n_boot_paired": BOOT_PAIRED,
+            "unit": "prompt",
+        }
+    }
+    update_summary({"generalization": out}, meta=meta)
 
     from figures import generalization_figure
 
-    generalization_figure(out, ROOT / "experiments" / "figures")
+    generalization_figure(out, FIGS)
 
 
 if __name__ == "__main__":
