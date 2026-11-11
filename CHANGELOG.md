@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0
+## 1.1.0 (2026-11-11)
 
 - Hardened API input validation and WebSocket handling.
 - Accessibility improvements and a plain-language dashboard UI.
