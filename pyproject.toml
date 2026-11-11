@@ -40,7 +40,7 @@ twinlens = "twinlens.cli:main"
 
 [project.optional-dependencies]
 server = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
-dev = ["twinlens[server]", "pytest", "pytest-timeout", "httpx", "ruff", "matplotlib", "pyarrow", "psutil", "transformers"]
+dev = ["twinlens[server]", "pytest", "pytest-timeout", "httpx", "ruff", "matplotlib", "pyarrow", "scipy", "psutil", "transformers"]
 
 [tool.setuptools.packages.find]
 include = ["twinlens*", "server*"]
