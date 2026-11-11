@@ -5,6 +5,8 @@ default/CI. Needs ~10 GB for the F32 model, ~8 GB for the transcoders and ~12 GB
 HF reference. The same invariants run on a tiny random model in ``test_gemma_tiny.py``.
 """
 
+import os
+
 import pytest
 import torch
 
