@@ -16,13 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: pyproject.toml
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with: { path: .hf_cache, key: hf-gpt2-transcoders-v1 }
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -e ".[dev]"
@@ -34,7 +34,7 @@ jobs:
           twinlens audit "When Mary and John went to the store, John gave a drink to" --top 8 > out/audit.txt
           twinlens audit "The Colosseum is located in the city of" --top 6 --json > out/audit.json
           pip freeze --exclude-editable > out/requirements.lock.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: experiments-output
           path: |
