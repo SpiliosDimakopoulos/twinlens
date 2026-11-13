@@ -51,7 +51,7 @@ def mlp_out_grads(
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", choices=["gpt2", "gemma2"], default="gpt2")
-    ap.add_argument("--tc-in", default="hook_mlp_in", help="gemma2: transcoder input hook")
+    ap.add_argument("--tc-in", default="ln2.hook_normalized", help="gemma2: transcoder input hook")
     ap.add_argument("--tc-out", default="hook_mlp_out", help="gemma2: transcoder output hook")
     args = ap.parse_args()
     tag = "" if args.model == "gpt2" else f"_{args.model}"

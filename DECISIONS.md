@@ -97,3 +97,11 @@ pre-feedforward norm output with its `1 + weight` (`hook_mlp_in`) or without it
 post-norm. `experiments/gemma_convention.py` settles it on real weights: FVU and single-layer
 splice loss recovery for all four combinations at layers 2, 8, 14 and 20. Pick the combination
 with low FVU, recovery near 1 and L0 near the published value, and change the defaults to match.
+
+**Settled (2026-11-12, `out/convention.log`, real weights, 86 tokens):** input
+`ln2.hook_normalized` (without the `1 + weight`), output `hook_mlp_out`, as circuit-tracer's
+config suggests. It has the lowest mean FVU (0.45 vs 0.93 for `hook_mlp_in`; both `mlp.hook_out`
+variants are > 1000) and L0 matches the published values (47.7/49, 63.4/52, 8.4/8, 14.4/11 at
+layers 2/8/14/20); with `hook_mlp_in`, L0 is 2-3x too high at layers 2 and 8. Those are now the
+defaults. Caveat: single-layer splice recovery is uneven (1.00 at layer 8, 0.34-0.45 at 14 and 20,
+-0.50 at layer 2), so the Gemma twin starts from a weaker replacement than GPT-2's.

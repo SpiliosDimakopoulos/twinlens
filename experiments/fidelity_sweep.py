@@ -37,7 +37,7 @@ def main() -> None:
     ap.add_argument("--model", choices=["gpt2", "qwen3", "gemma2"], default="gpt2")
     ap.add_argument("--per-family", type=int, default=0, help="prompts per family (0 = all)")
     ap.add_argument("--out", default=str(RESULTS))
-    ap.add_argument("--tc-in", default="hook_mlp_in", help="gemma2: transcoder input hook")
+    ap.add_argument("--tc-in", default="ln2.hook_normalized", help="gemma2: transcoder input hook")
     ap.add_argument("--tc-out", default="hook_mlp_out", help="gemma2: transcoder output hook")
     args = ap.parse_args()
 

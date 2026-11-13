@@ -32,7 +32,7 @@ def twin(gemma):
 
     # The hooks the transcoders read/write; set by the convention check (gemma_convention.py).
     tcs = GemmaScopeTranscoderSet(
-        in_hook=os.environ.get("TWINLENS_GEMMA_TC_IN", "hook_mlp_in"),
+        in_hook=os.environ.get("TWINLENS_GEMMA_TC_IN", "ln2.hook_normalized"),
         out_hook=os.environ.get("TWINLENS_GEMMA_TC_OUT", "hook_mlp_out"),
     )
     return Twin(gemma, tcs)

@@ -250,7 +250,7 @@ class GemmaScopeTranscoderSet:
     """Gemma Scope JumpReLU transcoders, one per layer, memory-mapped from an F32 safetensors
     copy of each ``params.npz`` (converted on first use).
 
-    Where they read and write is an open question (DECISIONS.md, D-Gemma), so it is a parameter:
+    Where they read and write was settled on real weights (DECISIONS.md, D4); it stays a parameter:
     ``in_hook`` is ``"hook_mlp_in"`` (pre-feedforward norm output, ``1 + weight`` included) or
     ``"ln2.hook_normalized"`` (without it); ``out_hook`` is ``"hook_mlp_out"`` (after the
     post-feedforward norm) or ``"mlp.hook_out"`` (before it, so that norm stays in the twin).
@@ -262,7 +262,7 @@ class GemmaScopeTranscoderSet:
     def __init__(
         self,
         layers: range | list[int] = range(26),
-        in_hook: str = "hook_mlp_in",
+        in_hook: str = "ln2.hook_normalized",
         out_hook: str = "hook_mlp_out",
         files: dict[int, Path] | None = None,
         cache_dir: Path | None = None,
