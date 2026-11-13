@@ -39,12 +39,23 @@ def main() -> None:
     ap.add_argument("--out", default=str(RESULTS))
     ap.add_argument("--tc-in", default="ln2.hook_normalized", help="gemma2: transcoder input hook")
     ap.add_argument("--tc-out", default="hook_mlp_out", help="gemma2: transcoder output hook")
+    ap.add_argument(
+        "--transcoders",
+        choices=["plt", "clt426k"],
+        default="plt",
+        help="gemma2: per-layer Gemma Scope transcoders or the 426K cross-layer transcoder",
+    )
+    ap.add_argument("--modes", default="", help="comma-separated twin levels (default: per model)")
     args = ap.parse_args()
 
     corpus = json.loads((ROOT / "experiments" / "prompts.json").read_text())
     keep = 1 if args.small else (args.per_family or None)
     prompts = [(cat, p) for cat, ps in corpus.items() for p in ps[:keep]]
     tag = "" if args.model == "gpt2" else f"_{args.model}"
+    if args.transcoders == "clt426k":
+        if args.model != "gemma2":
+            ap.error("--transcoders clt426k needs --model gemma2")
+        tag += "_clt"
     out = Path(args.out) / (("raw_small" if args.small else "raw") + tag)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -52,18 +63,26 @@ def main() -> None:
         twin, modes = Twin(GPT2.load("gpt2")), TWIN_LEVELS
     elif args.model == "gemma2":
         from twinlens.core.gemma2 import Gemma2
-        from twinlens.twin.transcoders import GemmaScopeTranscoderSet
+        from twinlens.twin.transcoders import CrossLayerTranscoderSet, GemmaScopeTranscoderSet
 
-        # 16k-feature transcoders: every level is affordable, including the nonlinear ones
-        tcs = GemmaScopeTranscoderSet(range(26), in_hook=args.tc_in, out_hook=args.tc_out)
-        twin = Twin(Gemma2.load(), tcs)
-        modes = (*TWIN_LEVELS, *FIX_LEVELS)
+        if args.transcoders == "clt426k":
+            # 426K features: the nonlinear levels need full encodes of every layer per run;
+            # the second ground truth is circuit-tracer's default intervention (D5).
+            twin = Twin(Gemma2.load(), CrossLayerTranscoderSet(26))
+            modes = ("direct", "linear", *FIX_LEVELS, "real_frozen_attn")
+        else:
+            # 16k-feature transcoders: every level is affordable, including the nonlinear ones
+            tcs = GemmaScopeTranscoderSet(range(26), in_hook=args.tc_in, out_hook=args.tc_out)
+            twin = Twin(Gemma2.load(), tcs)
+            modes = (*TWIN_LEVELS, *FIX_LEVELS)
     else:  # nonlinear twins need full 164k-feature encodes per run: too slow on CPU
         from twinlens.core.qwen3 import Qwen3
         from twinlens.twin.transcoders import QwenTranscoderSet
 
         twin = Twin(Qwen3.load(), QwenTranscoderSet(range(10, 28)))
         modes = ("direct", "linear", "linear_lnjac", "linear_fulljac")
+    if args.modes:
+        modes = tuple(args.modes.split(","))
     t0 = time.perf_counter()
     for i, (cat, text) in enumerate(prompts):
         path = out / f"{i:04d}.parquet"

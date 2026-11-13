@@ -154,3 +154,25 @@ what the extension plan assumed; the facts below are the ones to build on.
   defaults: `node_threshold = 0.8`, `edge_threshold = 0.98`; targets: `max_n_logits = 10`,
   `desired_logit_prob = 0.95`; `max_feature_nodes = None`. circuit-tracer itself tests this CLT
   (`tests/test_attributions_gemma.py::test_gemma_2_2b_clt`, CUDA only).
+
+## D6. One twin for per-layer and cross-layer transcoders (2026-11-13)
+
+- **One code path.** A feature of source layer `i` has one decoder vector per output layer
+  (`trace.dec[i]` is `[k, n_out, d_model]`; a PLT has `n_out = 1`, a CLT writes to every
+  `l >= i`). The twin's output at layer `l` is the sum over the sources writing there, plus
+  `b_dec` of layer `l` and its error term. With one source the sum is that single term, so every
+  PLT number is unchanged: checked bit for bit against the previous code on the tiny Gemma for
+  all levels, `real`, both transcoder hook choices, batched multi-layer edits, `feature_effects`
+  and the reliability signals.
+- **Sources upstream of the first edit** read an unperturbed input, so their clean contribution
+  is used; each later source's activations are computed once per run at its own layer and reused
+  by every output layer it writes to (`tests/test_clt_tiny.py` checks the two agree).
+- **Edits** set a feature relative to its clean activation and add `Δ · W_dec[f → l]` at every
+  output layer `l`, in the twin and in `real` alike. For a single edit this is circuit-tracer's
+  iterative patching: the feature's own input is upstream of the edit, so clean = current.
+- **`real_frozen_attn`**: `real` with attention patterns frozen at the clean run (D5).
+- **Reliability signals and labels for a CLT**: `rel_edit_size` uses the norm of all of a
+  feature's output vectors together; `feature_label` reads the sum of them. Both are the old
+  values for a PLT.
+- **BOS**: the CLT set sets `skip_first`, so position-0 activations are zero and the whole
+  position-0 output sits in the error term, like Qwen's attention sink and like circuit-tracer.
