@@ -17,7 +17,8 @@ Type any prompt. TwinLens builds GPT-2's attribution graph, switches features of
 each edge's predicted effect with what GPT-2 actually does, with and without the fix that keeps
 the LayerNorm and attention derivatives.
 
-Runs on a free CPU. After the Space wakes, the first request downloads GPT-2 and its transcoders
+Needs CPU hardware (free CPU basic requires a Hugging Face PRO plan; ZeroGPU does not fit this
+CPU-only app). After the Space wakes, the first request downloads GPT-2 and its transcoders
 (about 2.3 GB) and takes a minute or two.
 
 - Code and report: https://github.com/SpiliosDimakopoulos/twinlens
