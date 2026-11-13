@@ -136,7 +136,7 @@ Locally the dashboard accepts any prompt. `docker compose up` does the same in a
 
 The sweep's raw results are committed, so `make analyze` re-derives every number in the report
 in a few minutes without a model. They are also on the Hugging Face Hub as the dataset
-[`SpiliosDimakopoulos/twinlens-fidelity`](https://huggingface.co/datasets/SpiliosDimakopoulos/twinlens-fidelity). Re-running the sweeps themselves is described in §7 of the
+[`SpiliosDmk/twinlens-fidelity`](https://huggingface.co/datasets/SpiliosDmk/twinlens-fidelity). Re-running the sweeps themselves is described in §7 of the
 report. `make test`, `make web-test` and `make e2e` run the test suites.
 
 ```
