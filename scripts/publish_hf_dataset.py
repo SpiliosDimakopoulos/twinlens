@@ -12,7 +12,7 @@ from pathlib import Path
 
 from huggingface_hub import HfApi, create_repo
 
-REPO_ID = "SpiliosDimakopoulos/twinlens-fidelity"
+REPO_ID = "SpiliosDmk/twinlens-fidelity"
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "experiments" / "results"
 FILES = [

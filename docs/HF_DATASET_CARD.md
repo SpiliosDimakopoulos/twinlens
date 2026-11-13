@@ -70,7 +70,7 @@ Outcome columns come in groups per twin level, with suffixes `_dlogp` (change in
 from datasets import load_dataset
 from scipy.stats import spearmanr
 
-gpt2 = load_dataset("SpiliosDimakopoulos/twinlens-fidelity", "gpt2", split="train").to_pandas()
+gpt2 = load_dataset("SpiliosDmk/twinlens-fidelity", "gpt2", split="train").to_pandas()
 print(spearmanr(gpt2.real_dlogp, gpt2.linear_fulljac_dlogp).statistic)
 ```
 
