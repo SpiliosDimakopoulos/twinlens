@@ -15,7 +15,13 @@ from huggingface_hub import HfApi, create_repo
 REPO_ID = "SpiliosDimakopoulos/twinlens-fidelity"
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "experiments" / "results"
-FILES = ["fidelity.parquet", "fidelity_qwen3.parquet"]
+FILES = [
+    "fidelity.parquet",
+    "fidelity_qwen3.parquet",
+    "fidelity_gemma2.parquet",
+    "fidelity_atp.parquet",
+    "fidelity_atp_gemma2.parquet",
+]
 CARD = ROOT / "docs" / "HF_DATASET_CARD.md"
 
 

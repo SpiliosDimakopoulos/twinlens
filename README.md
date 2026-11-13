@@ -10,7 +10,8 @@ graph's predicted effect with the real one.
 On 8,064 such edits the graph is often wrong, sometimes in the opposite direction. Most of the
 error comes from two parts of the model that the graph holds fixed, LayerNorm and attention.
 Adding their first-order response back keeps the graph linear and raises its rank agreement
-with GPT-2 from ρ = 0.20 to 0.53. The result replicates on Qwen3-0.6B.
+with GPT-2 from ρ = 0.20 to 0.53. The result replicates on Qwen3-0.6B and on Gemma-2-2B, the
+model used by the public circuit-tracer demos.
 
 ![IOI: the attribution graph predicts the edit lowers log p(Mary) by 8.1; GPT-2 actually raises it by 0.23; the graph with the fix predicts +0.32](docs/screenshots/hero.png)
 
@@ -76,6 +77,9 @@ From 8,064 edits on GPT-2 small (56 prompts, 8 task families). Full write-up:
   patching, a gradient through the real model (Δρ +0.15 [0.11, 0.19]). On Qwen3-0.6B the gain
   over today's graph is smaller but holds on every metric (Δρ +0.12 [0.05, 0.20]). IOI prompts
   go from ρ 0.01 to 0.59.
+- **Third model.** On Gemma-2-2B with Gemma Scope transcoders (17,472 edits, all 26 layers) the
+  fix raises ρ from 0.21 to 0.36 (Δρ +0.15 [0.12, 0.18]) and right-direction agreement from 77%
+  to 87%. It also beats attribution patching on Gemma (Δρ +0.05 [0.03, 0.08]). Report §4.9.
 - **Spotting bad predictions.** A logistic model over nine signals from the unedited run flags
   failures with AUROC 0.84 on edits that move the answer. Disagreement between today's graph
   and the fixed graph is an even better warning (0.94).
@@ -89,7 +93,8 @@ From 8,064 edits on GPT-2 small (56 prompts, 8 task families). Full write-up:
 
 ## Limitations
 
-- Two small models (GPT-2 small; Qwen3-0.6B, upper 18 layers only) and per-layer transcoders.
+- Three small models (GPT-2 small; Qwen3-0.6B, upper 18 layers only; Gemma-2-2B) and per-layer
+  transcoders.
   Cross-layer transcoders, used by the current circuit-tracing work, are untested.
 - 56 short prompts written by the author; one prediction target per prompt.
 - Only feature-to-output effects are measured, not feature-to-feature edges.
@@ -130,7 +135,8 @@ Locally the dashboard accepts any prompt. `docker compose up` does the same in a
 ## Reproduce the paper
 
 The sweep's raw results are committed, so `make analyze` re-derives every number in the report
-in a few minutes without a model. Re-running the sweeps themselves is described in §7 of the
+in a few minutes without a model. They are also on the Hugging Face Hub as the dataset
+[`SpiliosDimakopoulos/twinlens-fidelity`](https://huggingface.co/datasets/SpiliosDimakopoulos/twinlens-fidelity). Re-running the sweeps themselves is described in §7 of the
 report. `make test`, `make web-test` and `make e2e` run the test suites.
 
 ```

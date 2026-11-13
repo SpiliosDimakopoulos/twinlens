@@ -10,14 +10,21 @@ tags:
   - transcoders
   - gpt2
   - qwen3
+  - gemma2
 size_categories:
-  - 1K<n<10K
+  - 10K<n<100K
 configs:
   - config_name: gpt2
     data_files: fidelity.parquet
     default: true
   - config_name: qwen3
     data_files: fidelity_qwen3.parquet
+  - config_name: gemma2
+    data_files: fidelity_gemma2.parquet
+  - config_name: atp_gpt2
+    data_files: fidelity_atp.parquet
+  - config_name: atp_gemma2
+    data_files: fidelity_atp_gemma2.parquet
 ---
 
 # TwinLens fidelity sweeps
@@ -26,8 +33,10 @@ Per-intervention results from TwinLens, a digital twin of a language model built
 
 - `fidelity.parquet`: GPT-2 small, 8,064 edits on 56 prompts, 12 layers.
 - `fidelity_qwen3.parquet`: Qwen3-0.6B, 2,304 edits on 16 prompts, layers 10 to 27.
+- `fidelity_gemma2.parquet`: Gemma-2-2B with Gemma Scope transcoders, 17,472 edits on 56 prompts, all 26 layers.
+- `fidelity_atp.parquet`, `fidelity_atp_gemma2.parquet`: the attribution-patching baseline (a gradient through the real model, column `atp_dlogp`) on the same edits as the GPT-2 and Gemma files.
 
-Headline result (GPT-2): the linear graph twin has Spearman ρ = 0.20 with the real effect. Restoring the LayerNorm and attention Jacobians gives ρ = 0.53 while staying linear. See the [report](https://spiliosdimakopoulos.github.io/twinlens/report/).
+Headline result (GPT-2): the linear graph twin has Spearman ρ = 0.20 with the real effect. Restoring the LayerNorm and attention Jacobians gives ρ = 0.53 while staying linear. On Gemma-2-2B the same fix lifts ρ from 0.21 to 0.36. See the [report](https://spiliosdimakopoulos.github.io/twinlens/report/).
 
 ## Columns
 
@@ -51,7 +60,7 @@ Outcome columns come in groups per twin level, with suffixes `_dlogp` (change in
 | `linear_` | linear graph twin (attribution graph as published) |
 | `linear_lnjac_` | graph + LayerNorm Jacobian (Fix A) |
 | `linear_fulljac_` | graph + LayerNorm and attention Jacobians (Fix B) |
-| `replacement_`, `replacement_ln_`, `replacement_full_` | nonlinear replacement twins (frozen, live LayerNorm, live LayerNorm and attention); GPT-2 file only |
+| `replacement_`, `replacement_ln_`, `replacement_full_` | nonlinear replacement twins (frozen, live LayerNorm, live LayerNorm and attention); GPT-2 and Gemma files |
 
 `fidelity_qwen3.parquet` has the same columns minus the three `replacement_*` groups.
 
@@ -71,4 +80,4 @@ Prompts were written by the author. Interventions move the feature's decoder dir
 
 ## Citation
 
-Dimakopoulos, S. (2026). *TwinLens: an interpretability digital twin for LLMs.* https://github.com/SpiliosDimakopoulos/twinlens
+Dimakopoulos, S. (2026). *Attribution graphs fail because of the derivatives they drop, not because they are linear.* TwinLens technical report. https://doi.org/10.5281/zenodo.23437556
