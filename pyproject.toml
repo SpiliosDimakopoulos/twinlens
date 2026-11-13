@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "twinlens"
-version = "1.1.0"
+version = "1.2.0"
 description = "A digital twin of an LLM's internals that measures how far its own explanations can be trusted."
 readme = "README.md"
 requires-python = ">=3.11"

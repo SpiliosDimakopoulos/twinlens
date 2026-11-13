@@ -12,8 +12,8 @@ authors:
   - family-names: Dimakopoulos
     given-names: Spilios
     alias: SpiliosDimakopoulos
-version: 1.1.0
-date-released: 2026-11-11
+version: 1.2.0
+date-released: 2026-11-13
 license: MIT
 repository-code: "https://github.com/SpiliosDimakopoulos/twinlens"
 url: "https://spiliosdimakopoulos.github.io/twinlens/"

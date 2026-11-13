@@ -99,7 +99,7 @@ export function StudyView() {
           </Card>
           {s.generalization && (
             <Card label="Fig. 10b" title="It holds on a second architecture"
-              subtitle={<>How much the fix improves on today's graph, on the same edits, in GPT-2 small and in Qwen3-0.6B, a newer model built differently (layers 10–27 only, 16 prompts). Right of the zero line means better. Every range stays on the better side; the gain on Qwen3 is smaller.</>}>
+              subtitle={<>How much the fix improves on today's graph, on the same edits, in GPT-2 small and in Qwen3-0.6B, a newer model built differently (layers 10–27 only, 16 prompts). Right of the zero line means better. Every range stays on the better side; the gain on Qwen3 is smaller. On Gemma-2-2B (17,472 edits, report §4.9) the fix also lifts ρ from 0.21 to 0.36.</>}>
               <Generalization g={s.generalization} />
             </Card>
           )}
