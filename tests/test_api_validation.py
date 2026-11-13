@@ -116,6 +116,21 @@ def test_websocket_rejects_foreign_origin(client):
     assert e.value.code == 1008
 
 
+def test_websocket_extra_origins_from_env(monkeypatch):
+    import importlib
+
+    import server.app as app_module
+
+    monkeypatch.setenv("TWINLENS_WS_ORIGINS", "https://a.hf.space, ,https://b.example")
+    try:
+        reloaded = importlib.reload(app_module)
+        assert {"https://a.hf.space", "https://b.example"} <= reloaded.WS_ORIGINS
+        assert "" not in reloaded.WS_ORIGINS
+    finally:
+        monkeypatch.delenv("TWINLENS_WS_ORIGINS")
+        importlib.reload(app_module)
+
+
 def test_origin_lists_share_the_dev_origin():
     assert set(api.CORS_ORIGINS) <= api.WS_ORIGINS
 
