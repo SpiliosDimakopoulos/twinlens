@@ -76,7 +76,9 @@ class GemmaConfig:
             "d_vocab": get("vocab_size"),
             "n_ctx": get("max_position_embeddings"),
             "ln_eps": get("rms_norm_eps"),
-            "rope_theta": get("rope_theta"),
+            # transformers >= 5 moves it into rope_parameters
+            "rope_theta": get("rope_theta") or (get("rope_parameters") or {}).get("rope_theta")
+            or 10_000.0,
             "query_pre_attn_scalar": get("query_pre_attn_scalar"),
             "attn_softcap": get("attn_logit_softcapping"),
             "final_softcap": get("final_logit_softcapping"),
