@@ -176,3 +176,27 @@ what the extension plan assumed; the facts below are the ones to build on.
   values for a PLT.
 - **BOS**: the CLT set sets `skip_first`, so position-0 activations are zero and the whole
   position-0 output sits in the error term, like Qwen's attention sink and like circuit-tracer.
+
+## D7. CLT pilot: analysis and decision gate, fixed before the sweep (2026-11-13)
+
+Written before any CLT sweep number was seen (the `--small` run is for timing only and is not
+analysed for the decision). Script: `experiments/analyze_clt.py`, section `gemma2_clt` of
+`summary.json`, seed 0, 1000 cluster-bootstrap resamples over prompts.
+
+- **Sweep**: all 56 prompts, `--n-top 3 --n-random 3` (edit selection as for the PLT sweep:
+  `sample_edits`, ablate and ×2), levels `direct`, `linear`, `linear_lnjac`, `linear_fulljac`,
+  plus both ground truths `real` and `real_frozen_attn`. The nonlinear `replacement*` levels are
+  left out: they need a full 426K-feature encode of every layer per run. AtP on the same edits
+  (`atp_baseline.py --transcoders clt426k`), summed over every output layer of the feature.
+- **Primary ground truth `real`** (everything live), as for every existing number; every block is
+  repeated against `real_frozen_attn`, and the agreement of the two ground truths is reported.
+- **Metrics**: Spearman ρ with the real Δlog p, sign agreement on edits with |real| > 0.05 nats,
+  share within tolerance, share with error > 1 nat ("catastrophic"), clipped mean error; paired
+  differences Fix B − linear and Fix B − AtP; Spearman per edited layer; the PLT twin's metrics on
+  the same prompts.
+- **Gate** (plan 0.9). Let `[lo, hi]` be the interval of Δρ = ρ(Fix B) − ρ(linear) on the CLT, and
+  `g = ρ(CLT linear) − ρ(PLT Fix B)` with a joint bootstrap over prompts (`[g_lo, g_hi]`):
+  - **A** (finding holds on CLTs): `lo > 0` and `g_hi < 0`;
+  - **B** (CLTs fix it themselves): `lo ≤ 0` and `g_hi ≥ 0`;
+  - **C** (mixed): anything else.
+  The script prints the outcome; it is not revisited after seeing the numbers.
