@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from functools import lru_cache
 
 import torch
@@ -52,6 +53,8 @@ DEV_ORIGIN = "http://localhost:5173"  # Vite dev server
 # the built app itself (same-origin); CORS only needs the cross-origin dev server.
 CORS_ORIGINS = [DEV_ORIGIN]
 WS_ORIGINS = {DEV_ORIGIN, "http://localhost:8000", "http://127.0.0.1:8000"}
+# A public deployment (e.g. a Hugging Face Space) adds its own origin, comma-separated.
+WS_ORIGINS |= {o.strip() for o in os.environ.get("TWINLENS_WS_ORIGINS", "").split(",") if o.strip()}
 
 app = FastAPI(title="TwinLens", version="1.2.0")
 app.add_middleware(

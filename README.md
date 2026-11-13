@@ -23,6 +23,9 @@ graph with the two derivatives restored predicts +0.32.*
 
 **In the browser:** the [live demo](https://spiliosdimakopoulos.github.io/twinlens/) runs on
 precomputed GPT-2 runs. Click a dot in the graph and compare each prediction with what GPT-2 did.
+To try your own prompt in the browser, use the
+[Hugging Face Space](https://huggingface.co/spaces/SpiliosDmk/twinlens) (free CPU; the first request
+after it wakes takes about a minute).
 
 **On your own prompt, in Colab:** [`notebooks/audit_your_prompt.ipynb`](https://colab.research.google.com/github/SpiliosDimakopoulos/twinlens/blob/main/notebooks/audit_your_prompt.ipynb)
 (free CPU runtime, about five minutes including downloads).
