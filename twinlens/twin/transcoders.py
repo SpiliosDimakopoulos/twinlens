@@ -305,3 +305,102 @@ class GemmaScopeTranscoderSet:
                 raise ValueError(f"layer {layer}: W_enc {tc.W_enc.shape} vs W_dec {tc.W_dec.shape}")
             self._cache[layer] = tc
         return self._cache[layer]
+
+
+CLT_REPO = "mntss/clt-gemma-2-2b-426k"
+ENCODE_ROWS = 4096  # encoder rows converted to F32 at a time (BF16 on disk)
+
+
+class CrossLayerSource:
+    """The features of one source layer ``i`` of a cross-layer transcoder.
+
+    ``acts = relu(resid_mid[i] @ W_enc_iᵀ + b_enc_i)`` (or JumpReLU if the file has a threshold),
+    and feature ``f`` writes ``acts[f] * W_dec_i[f, l - i]`` into ``hook_mlp_out[l]`` for every
+    ``l >= i``. ``b_dec`` is the output bias of layer ``i`` itself (the circuit-tracer files store
+    it next to the encoder), so ``tcs[l].b_dec`` is always the bias of output layer ``l``.
+    Weights stay in their stored dtype (BF16 for the released CLTs) on disk; only the rows read
+    are converted to F32.
+    """
+
+    def __init__(self, layer: int, enc: MmapSafetensors, dec: MmapSafetensors):
+        self.layer = layer
+        self._W_enc = enc.get(f"W_enc_{layer}")  # [d_sae, d_model], feature-major
+        self.b_enc = enc.get(f"b_enc_{layer}").float()
+        self.b_dec = enc.get(f"b_dec_{layer}").float()
+        key = f"threshold_{layer}"
+        self.threshold = enc.get(key).float().reshape(-1) if key in enc else None
+        self._W_dec = dec.get(f"W_dec_{layer}")  # [d_sae, n_out, d_model]
+
+    @property
+    def d_sae(self) -> int:
+        return self._W_enc.shape[0]
+
+    @property
+    def n_out(self) -> int:
+        return self._W_dec.shape[1]
+
+    def pre(self, x: torch.Tensor, chunk: int = ENCODE_ROWS) -> torch.Tensor:
+        parts = [
+            x @ self._W_enc[s : s + chunk].float().T + self.b_enc[s : s + chunk]
+            for s in range(0, self.d_sae, chunk)
+        ]
+        return torch.cat(parts, -1)
+
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        pre = self.pre(x)
+        if self.threshold is None:
+            return torch.relu(pre)
+        return pre * (pre > self.threshold.clamp(min=0))
+
+    def enc_rows(self, idx: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        idx = torch.as_tensor(idx, dtype=torch.long)
+        return self._W_enc[idx].float(), self.b_enc[idx]
+
+    def dec_rows(self, idx) -> torch.Tensor:
+        """Decoder rows ``[k, n_out, d_model]``: slot ``j`` writes to layer ``layer + j``."""
+        idx = torch.as_tensor(idx, dtype=torch.long)
+        if not len(idx):
+            return torch.zeros(0, self.n_out, self._W_dec.shape[2])
+        # mmap fancy indexing reads only these rows; sorted reads are kinder to the page cache
+        order = idx.argsort()
+        rows = self._W_dec[idx[order]].float()
+        return rows[order.argsort()]
+
+
+class CrossLayerTranscoderSet:
+    """A cross-layer transcoder in circuit-tracer's on-disk format (DECISIONS.md, D5):
+    ``W_enc_{i}.safetensors`` (``W_enc_i``, ``b_enc_i``, ``b_dec_i``, optional ``threshold_i``) and
+    ``W_dec_{i}.safetensors`` (``W_dec_i`` [d_sae, n_layers - i, d_model]), memory-mapped.
+
+    ``directory`` holds those files (``experiments/gemma_clt_prepare.py`` downloads them); by
+    default the project cache. The twin reads ``hook_resid_mid`` (no norm) and writes
+    ``hook_mlp_out``; position 0 (BOS) is zeroed, as circuit-tracer's attribution does.
+    """
+
+    cross_layer = True
+    skip_first = True
+    in_hook = "hook_resid_mid"
+    out_hook = "hook_mlp_out"
+
+    def __init__(self, n_layers: int = 26, directory: Path | None = None, repo: str = CLT_REPO):
+        self.layers = list(range(n_layers))
+        self.repo = repo
+        self.dir = Path(directory or CACHE_DIR / "twinlens" / repo.replace("/", "--"))
+        self._cache: dict[int, CrossLayerSource] = {}
+
+    def __contains__(self, layer: int) -> bool:
+        return layer in self.layers
+
+    def files(self, layer: int) -> tuple[Path, Path]:
+        return self.dir / f"W_enc_{layer}.safetensors", self.dir / f"W_dec_{layer}.safetensors"
+
+    def __getitem__(self, layer: int) -> CrossLayerSource:
+        if layer not in self.layers:
+            raise KeyError(f"no cross-layer transcoder source at layer {layer}")
+        if layer not in self._cache:
+            enc, dec = self.files(layer)
+            src = CrossLayerSource(layer, MmapSafetensors(enc), MmapSafetensors(dec))
+            if src.n_out != len(self.layers) - layer:
+                raise ValueError(f"layer {layer}: W_dec has {src.n_out} output layers")
+            self._cache[layer] = src
+        return self._cache[layer]
