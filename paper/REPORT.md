@@ -1,7 +1,7 @@
 # Attribution graphs fail because of the derivatives they drop, not because they are linear
-### Measuring, explaining, predicting and fixing the counterfactual fidelity of transcoder replacement models in GPT-2 small
+### Measuring, explaining, predicting and fixing the counterfactual fidelity of transcoder replacement models in GPT-2 small, Qwen3-0.6B and Gemma-2-2B
 
-*Technical report, TwinLens project, October 2026. Code, data and figures: https://github.com/SpiliosDimakopoulos/twinlens*
+*Technical report, TwinLens project, October 2026; version 1.2, November 2026. Code, data and figures: https://github.com/SpiliosDimakopoulos/twinlens*
 
 ---
 
