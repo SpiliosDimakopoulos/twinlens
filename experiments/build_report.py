@@ -23,7 +23,7 @@ DESC = (
     "Do attribution graphs predict what a language model really does? 8,064 feature "
     "interventions on GPT-2 small: the graph's frozen LayerNorm and attention cause most errors, "
     "and keeping their Jacobians makes the linear graph match the nonlinear model. "
-    "Replicated on Qwen3-0.6B."
+    "Replicated on Qwen3-0.6B and Gemma-2-2B."
 )
 
 CSS = """
@@ -136,7 +136,7 @@ def main() -> None:
 <script type="application/ld+json">{LDJSON}</script>
 <meta property="og:type" content="article" />
 <meta property="og:title" content="{title}" />
-<meta property="og:description" content="Attribution graphs drop two derivatives. Restoring them keeps the graph linear and lifts counterfactual accuracy from rho 0.20 to 0.53 on GPT-2, replicated on Qwen3-0.6B." />
+<meta property="og:description" content="Attribution graphs drop two derivatives. Restoring them keeps the graph linear and lifts counterfactual accuracy from rho 0.20 to 0.53 on GPT-2, replicated on Qwen3-0.6B and Gemma-2-2B." />
 <meta property="og:url" content="https://spiliosdimakopoulos.github.io/twinlens/report/" />
 <meta property="og:image" content="https://spiliosdimakopoulos.github.io/twinlens/og.png" />
 <meta property="og:image:width" content="1200" />

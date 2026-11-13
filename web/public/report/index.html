@@ -12,17 +12,17 @@
 <meta name="citation_pdf_url" content="https://spiliosdimakopoulos.github.io/twinlens/report/TwinLens_report.pdf">
 <meta name="citation_abstract_html_url" content="https://spiliosdimakopoulos.github.io/twinlens/report/">
 <meta name="citation_keywords" content="mechanistic interpretability; attribution graphs; transcoders; circuit tracing; faithfulness; GPT-2; LayerNorm; attention">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "ScholarlyArticle", "headline": "Attribution graphs fail because of the derivatives they drop, not because they are linear", "name": "Attribution graphs fail because of the derivatives they drop, not because they are linear", "author": {"@type": "Person", "name": "Spilios Dimakopoulos"}, "datePublished": "2026-10-17", "description": "Do attribution graphs predict what a language model really does? 8,064 feature interventions on GPT-2 small: the graph's frozen LayerNorm and attention cause most errors, and keeping their Jacobians makes the linear graph match the nonlinear model. Replicated on Qwen3-0.6B.", "identifier": "https://doi.org/10.5281/zenodo.23437556", "url": "https://spiliosdimakopoulos.github.io/twinlens/report/", "isBasedOn": "https://github.com/SpiliosDimakopoulos/twinlens", "keywords": "mechanistic interpretability, attribution graphs, transcoders, faithfulness", "license": "https://opensource.org/licenses/MIT"}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "ScholarlyArticle", "headline": "Attribution graphs fail because of the derivatives they drop, not because they are linear", "name": "Attribution graphs fail because of the derivatives they drop, not because they are linear", "author": {"@type": "Person", "name": "Spilios Dimakopoulos"}, "datePublished": "2026-10-17", "description": "Do attribution graphs predict what a language model really does? 8,064 feature interventions on GPT-2 small: the graph's frozen LayerNorm and attention cause most errors, and keeping their Jacobians makes the linear graph match the nonlinear model. Replicated on Qwen3-0.6B and Gemma-2-2B.", "identifier": "https://doi.org/10.5281/zenodo.23437556", "url": "https://spiliosdimakopoulos.github.io/twinlens/report/", "isBasedOn": "https://github.com/SpiliosDimakopoulos/twinlens", "keywords": "mechanistic interpretability, attribution graphs, transcoders, faithfulness", "license": "https://opensource.org/licenses/MIT"}</script>
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Attribution graphs fail because of the derivatives they drop, not because they are linear" />
-<meta property="og:description" content="Attribution graphs drop two derivatives. Restoring them keeps the graph linear and lifts counterfactual accuracy from rho 0.20 to 0.53 on GPT-2, replicated on Qwen3-0.6B." />
+<meta property="og:description" content="Attribution graphs drop two derivatives. Restoring them keeps the graph linear and lifts counterfactual accuracy from rho 0.20 to 0.53 on GPT-2, replicated on Qwen3-0.6B and Gemma-2-2B." />
 <meta property="og:url" content="https://spiliosdimakopoulos.github.io/twinlens/report/" />
 <meta property="og:image" content="https://spiliosdimakopoulos.github.io/twinlens/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="https://spiliosdimakopoulos.github.io/twinlens/og.png" />
-<meta name="description" content="Do attribution graphs predict what a language model really does? 8,064 feature interventions on GPT-2 small: the graph's frozen LayerNorm and attention cause most errors, and keeping their Jacobians makes the linear graph match the nonlinear model. Replicated on Qwen3-0.6B.">
+<meta name="description" content="Do attribution graphs predict what a language model really does? 8,064 feature interventions on GPT-2 small: the graph's frozen LayerNorm and attention cause most errors, and keeping their Jacobians makes the linear graph match the nonlinear model. Replicated on Qwen3-0.6B and Gemma-2-2B.">
 <style>
 :root { color-scheme: light; --bg:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
   --line:#e1e0d9; --accent:#2a78d6; --code:#f3f2ee; }
@@ -69,7 +69,7 @@ feature off and the output moves by this much". We test those claims directly. O
 with per-layer transcoders, we make 8,064 feature interventions (ablate or amplify ×2) across 56
 prompts in 8 task families. We predict each intervention's effect with a ladder of twins, each
 unfreezing one more component of the real model, and then measure it on the real model.</p>
-<p>Four findings:</p>
+<p>Five findings:</p>
 <ol>
 <li><strong>The linear twin that attribution graphs describe is a weak counterfactual predictor.</strong> Its
     rank correlation with the real effect is ρ = 0.20 [0.14, 0.25]. On edits that measurably move
@@ -94,7 +94,9 @@ unfreezing one more component of the real model, and then measure it on the real
 <p>The fix replicates on a second, architecturally different model, Qwen3-0.6B (§4.7): the
 paired improvement in ρ is +0.12 [0.05, 0.20] and catastrophic misses fall from 3.0% to
 0.8%. The gain is smaller than on GPT-2, on 16 prompts, with every paired interval
-excluding zero (uncorrected for multiple metrics).
+excluding zero (uncorrected for multiple metrics). It replicates again on Gemma-2-2B with
+Gemma Scope transcoders (§4.9): 17,472 edits on all 26 layers, ρ 0.21 → 0.36, paired
+Δρ +0.15 [0.12, 0.18].
 4. <strong>Failures of today's graph can be anticipated without running the real model.</strong> A logistic
 "trust model" over nine signals computed from the clean run alone predicts whether the
 graph prediction will hold: AUROC 0.93 on held-out prompts and on held-out <em>task families</em>
@@ -108,7 +110,9 @@ on the edges the trust model clears, and 22% on those it flags.</p>
 <p><strong>The fixed graph beats a gradient through the real model.</strong> Attribution patching, one
     backward pass through GPT-2 itself with nothing frozen, reaches ρ = 0.38 and 77% sign
     agreement on the same edits. Fix B is better on both: Δρ +0.15 [0.11, 0.19] and +9 pp
-    [4, 14] in sign agreement, with the same error size (§4.8).</p>
+    [4, 14] in sign agreement, with the same error size (§4.8). On Gemma-2-2B the margin is
+    smaller but still excludes zero: Δρ +0.05 [0.03, 0.08], +8 pp [4, 11] in sign agreement
+    (§4.9).</p>
 </li>
 </ol>
 <p>Effects in this study are small: only 9.0% of edits move the output by more than 0.05 nats and
@@ -256,7 +260,7 @@ between consecutive levels attribute the twin's error to its sources.</p>
 <p>Each feature is both ablated and amplified. BOS is excluded. The 56 prompts span 8 families:
 factual recall, IOI, induction/copying, syntax, code, sequences (named <code>arithmetic</code> in the
 data), narrative and sentiment
-(<code>experiments/prompts.json</code>). That gives 8,064 edits × 6 models.</p>
+(<code>experiments/prompts.json</code>). That gives 8,064 edits, each predicted by five twin levels and two fixes and measured on the real model.</p>
 <p><strong>Metrics.</strong></p>
 <ul>
 <li>Spearman ρ between predicted and real Δlog p.</li>
@@ -429,7 +433,7 @@ in the queries and keys (dq, dk) changes the scores by ds = (dq · k₀ + q₀ �
 the softmax turns that into</p>
 <pre><code>dp = p₀ ⊙ (ds − Σₖ p₀ ds).
 </code></pre>
-<p>The head output z = p·v then becomes z = p₀v + p₀·dv + dp·v₀. We drop the product of the two
+<p>The head output z = p·v then becomes z = p₀v₀ + p₀·dv + dp·v₀. We drop the product of the two
 changes (dp·dv), which is second-order.</p>
 <p>Adding both terms keeps the model linear: Fix B is affine in the perturbation (tested), and it
 is the exact first-order expansion of the twin with frozen ReLU gates but live LayerNorm and
@@ -562,7 +566,7 @@ live-norm/live-attention twin to within 5% on a 1% edit.</p>
 <tbody>
 <tr>
 <td>Graph today</td>
-<td>0.34 [0.22, 0.42]</td>
+<td>0.33 [0.23, 0.43]</td>
 <td>78.5%</td>
 <td>51.5%</td>
 <td>3.0%</td>
@@ -570,7 +574,7 @@ live-norm/live-attention twin to within 5% on a 1% edit.</p>
 </tr>
 <tr>
 <td>Fix A</td>
-<td>0.42 [0.32, 0.50]</td>
+<td>0.42 [0.33, 0.50]</td>
 <td>85.6%</td>
 <td>58.6%</td>
 <td>1.4%</td>
@@ -578,7 +582,7 @@ live-norm/live-attention twin to within 5% on a 1% edit.</p>
 </tr>
 <tr>
 <td>Fix B</td>
-<td>0.45 [0.36, 0.54]</td>
+<td>0.45 [0.36, 0.53]</td>
 <td>87.7%</td>
 <td>62.0%</td>
 <td>0.8%</td>
@@ -657,15 +661,108 @@ errors, but it ranks and signs effects worse than the linear twin with the two J
 reading is that the twin's first-order expansion is taken through sparse transcoder features
 with fixed ReLU gates, which behave more linearly under a feature-sized edit than the real
 GELU MLPs do; we have not tested this explanation.</p>
+<h3>4.9 A third model: Gemma-2-2B</h3>
+<p>We ported the twin to Gemma-2-2B (<a href="https://github.com/SpiliosDimakopoulos/twinlens/blob/main/twinlens/core/gemma2.py"><code>twinlens/core/gemma2.py</code></a>, DECISIONS.md D4) with the Gemma
+Scope 16k-feature JumpReLU transcoders and circuit-tracer's per-layer L0 choice. Gemma adds
+four RMSNorms per block, alternating sliding-window attention, an attention-score softcap
+(<code>50 tanh(s/50)</code>, whose derivative Fix B includes) and a final logit softcap. Which activations
+the transcoders read and write was settled on real weights before the sweep: the
+pre-feedforward norm output <em>without</em> its weight, and the MLP output after the post-feedforward
+norm. That choice has the lowest reconstruction error (mean FVU 0.45 over layers 2, 8, 14 and
+20) and L0 close to the published values. Single-layer splice recovery is uneven, though: 1.00
+at layer 8, 0.34–0.45 at layers 14 and 20, and −0.50 at layer 2. So the Gemma replacement is
+weaker than GPT-2's.</p>
+<p>The scope is the full model: 17,472 edits on 56 prompts (the GPT-2 prompt set). In each of the
+26 layers, 3 top and 3 random active features are each ablated and amplified (12 edits per layer
+per prompt). BOS is never edited. Unlike
+on Qwen3, the nonlinear replacement twin was run, and so was attribution patching on the real
+model (<code>experiments/atp_baseline.py --model gemma2</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>ρ [95% CI]</th>
+<th>sign agree</th>
+<th>within tol (big)</th>
+<th>catastrophic</th>
+<th>mean err</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Direct edges</td>
+<td>0.22 [0.19, 0.26]</td>
+<td>75.0%</td>
+<td>83.4%</td>
+<td>0.02%</td>
+<td>0.012</td>
+</tr>
+<tr>
+<td>Graph today</td>
+<td>0.21 [0.17, 0.24]</td>
+<td>77.3%</td>
+<td>78.5%</td>
+<td>0.02%</td>
+<td>0.019</td>
+</tr>
+<tr>
+<td>Fix A</td>
+<td>0.29 [0.25, 0.32]</td>
+<td>83.2%</td>
+<td>85.2%</td>
+<td>0.01%</td>
+<td>0.012</td>
+</tr>
+<tr>
+<td>Fix B</td>
+<td>0.36 [0.33, 0.39]</td>
+<td>87.4%</td>
+<td>89.6%</td>
+<td>0.01%</td>
+<td>0.011</td>
+</tr>
+<tr>
+<td>Nonlinear replacement twin</td>
+<td>0.23 [0.20, 0.25]</td>
+<td>82.1%</td>
+<td>79.5%</td>
+<td>0.02%</td>
+<td>0.033</td>
+</tr>
+<tr>
+<td>Attribution patching (real Gemma)</td>
+<td>0.31 [0.27, 0.34]</td>
+<td>79.9%</td>
+<td>85.2%</td>
+<td>0.01%</td>
+<td>0.011</td>
+</tr>
+</tbody>
+</table>
+<p>Paired, Fix B − graph today is Δρ +0.15 [0.12, 0.18], +10 pp [7, 14] in sign agreement and
++11 pp [8, 14] within tolerance on big edits. Fix B − attribution patching is Δρ +0.05
+[0.03, 0.08], +8 pp [4, 11] in sign agreement and +4 pp [1, 8] within tolerance; catastrophic
+misses and mean error are indistinguishable. The gain holds in every task family: ρ rises on
+all eight, most on IOI (0.12 → 0.34), syntax (0.19 → 0.38) and narrative (0.28 → 0.45), least
+on code (0.31 → 0.38).</p>
+<p>Three caveats. First, catastrophic misses are almost absent on Gemma at every level (at most 4
+of 17,472 edits), so that metric does not separate the levels here. Second, on big edits
+(n = 809) "no change" is within tolerance 80% of the time with mean error 0.011, so Fix B beats
+that baseline on tolerance (90%) but not on error size. Third, unlike on GPT-2, the nonlinear
+replacement twin is much <em>worse</em> than Fix B (ρ 0.23 against 0.36, mean error three times
+larger). A plausible reason is the weak splice recovery above: running the transcoders live at
+every downstream layer compounds their reconstruction error, while the linear twin only uses
+them through gates and Jacobians at the clean point. We have not tested this.</p>
 <h2>5. Limitations</h2>
 <ul>
-<li><strong>Two models, two transcoder families.</strong> GPT-2 small with per-layer transcoders, and
+<li><strong>Three models, three transcoder families.</strong> GPT-2 small with per-layer transcoders,
     Qwen3-0.6B with <code>circuit-tracer</code> transcoders, where we covered only the upper 18 layers and
-    far fewer edits (§4.7). Larger models and cross-layer transcoders, which the current
-    circuit-tracing work uses, remain untested.</li>
-<li><strong>One gradient baseline.</strong> §4.8 compares Fix B with attribution patching on GPT-2 only.
-    Integrated-gradient variants (Marks et al., 2024; Hanna et al., 2024) and AtP* (Kramár et
-    al., 2024) were not run, and the comparison was not repeated on Qwen3.</li>
+    far fewer edits (§4.7), and Gemma-2-2B with Gemma Scope transcoders whose splice recovery is
+    uneven across layers (§4.9). Models beyond 2B parameters and cross-layer transcoders, which
+    the current circuit-tracing work uses, remain untested.</li>
+<li><strong>One gradient baseline.</strong> §4.8 and §4.9 compare Fix B with attribution patching on GPT-2
+    and Gemma-2-2B. Integrated-gradient variants (Marks et al., 2024; Hanna et al., 2024) and
+    AtP* (Kramár et al., 2024) were not run, and the comparison was not repeated on Qwen3.</li>
 <li><strong>Only feature-to-output effects are tested.</strong> A graph also asserts feature-to-feature
     edges; we never measure an intermediate feature's response to an edit.</li>
 <li><strong>Effects are small and early layers dominate the failures.</strong> See §3 and §4.1: few edits
@@ -730,12 +827,15 @@ python experiments/extend_sweep.py --modes linear_lnjac     # Fix A, ~10 min
 python experiments/extend_sweep.py --modes linear_fulljac   # Fix B, ~15 min
 python experiments/qwen_prepare.py                                   # Qwen3 transcoders, ~6 GB, ~70 min
 python experiments/fidelity_sweep.py --model qwen3 --per-family 2 --n-top 2 --n-random 2   # 2,304 edits, ~30 min
+python experiments/gemma_prepare.py                                  # Gemma-2-2B weights + Gemma Scope transcoders
+python experiments/fidelity_sweep.py --model gemma2 --n-top 3 --n-random 3   # 17,472 edits, ~5 h on 8 vCPU, 16 GB RAM
+python experiments/atp_baseline.py --model gemma2                    # attribution patching on Gemma
 make analyze        # analyze.py + analyze_generalization.py: summary.json, trust_model.json, figures
 make serve          # dashboard at http://localhost:8000
 </code></pre>
 <p>The sweep's raw output (<code>experiments/results/fidelity.parquet</code>, 1.3 MB) is committed, so
 <code>make analyze</code> reproduces every number above without re-running the sweep (the robustness
-checks of §3–§4.7 are in the <code>robustness</code> and <code>generalization</code> blocks of <code>summary.json</code>). The
+checks of §3–§4.9 are in the <code>robustness</code> and <code>generalization</code> blocks of <code>summary.json</code>). The
 latency figures in the README come from <code>make bench</code>.</p>
 <h2>References</h2>
 <ul>
