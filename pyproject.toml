@@ -70,8 +70,8 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-m 'not slow and not qwen'"
-markers = ["slow: needs extra RAM (HF parity)", "qwen: needs the prepared Qwen3 transcoders (~7 GB)"]
+addopts = "-m 'not slow and not qwen and not gemma'"
+markers = ["slow: needs extra RAM (HF parity)", "qwen: needs the prepared Qwen3 transcoders (~7 GB)", "gemma: needs Gemma-2-2B and its Gemma Scope transcoders (~25 GB disk, server only)"]
 
 [tool.ruff.format]
 quote-style = "double"

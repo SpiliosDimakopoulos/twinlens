@@ -6,7 +6,7 @@ Thanks for looking. Bug reports, questions and small pull requests are all welco
 
 - **Try it on your prompt** and open an issue if a result looks wrong: `twinlens audit "your prompt"`.
 - **Pick an issue** labelled [`good first issue`](https://github.com/SpiliosDimakopoulos/twinlens/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
-- **Port the twin to another model** (Gemma-2-2B with circuit-tracer transcoders is the obvious next one).
+- **Port the twin to another model** (GPT-2 small, Qwen3-0.6B and Gemma-2-2B are done; Llama-3.2-1B with circuit-tracer transcoders would be the next one).
 
 ## Set up
 

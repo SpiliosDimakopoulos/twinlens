@@ -15,16 +15,20 @@ edit key columns so analyze_atp.py can check the alignment).
 
 from __future__ import annotations
 
+import argparse
+
 import pandas as pd
 import torch
 from common import EDIT_KEY, RESULTS, write_parquet
 
 from twinlens.core.gpt2 import GPT2
-from twinlens.twin.transcoders import TranscoderSet
 
 
-def mlp_out_grads(model: GPT2, text: str) -> tuple[int, dict[int, torch.Tensor]]:
-    """Clean top-1 target and ∂log p(target)/∂hook_mlp_out for every layer, [pos, d_model]."""
+def mlp_out_grads(
+    model: GPT2, text: str, hook: str = "hook_mlp_out"
+) -> tuple[int, dict[int, torch.Tensor]]:
+    """Clean top-1 target and ∂log p(target)/∂blocks.{l}.{hook} for every layer, [pos, d_model].
+    ``hook`` is where the transcoder's output (and so the feature edit) lives."""
     toks = model.to_tokens(text)
     store: dict[int, torch.Tensor] = {}
 
@@ -36,7 +40,7 @@ def mlp_out_grads(model: GPT2, text: str) -> tuple[int, dict[int, torch.Tensor]]
 
         return fn
 
-    hooks = [(f"blocks.{l}.hook_mlp_out", make(l)) for l in range(model.cfg.n_layers)]
+    hooks = [(f"blocks.{l}.{hook}", make(l)) for l in range(model.cfg.n_layers)]
     with torch.enable_grad(), model.hooks(hooks):
         logits = model(toks)[0, -1]
         target = int(logits.argmax())
@@ -45,20 +49,35 @@ def mlp_out_grads(model: GPT2, text: str) -> tuple[int, dict[int, torch.Tensor]]
 
 
 def main() -> None:
-    df = pd.read_parquet(RESULTS / "fidelity.parquet")
-    model = GPT2.load("gpt2")
-    tcs = TranscoderSet(model.cfg.n_layers)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", choices=["gpt2", "gemma2"], default="gpt2")
+    ap.add_argument("--tc-in", default="ln2.hook_normalized", help="gemma2: transcoder input hook")
+    ap.add_argument("--tc-out", default="hook_mlp_out", help="gemma2: transcoder output hook")
+    args = ap.parse_args()
+    tag = "" if args.model == "gpt2" else f"_{args.model}"
+    df = pd.read_parquet(RESULTS / f"fidelity{tag}.parquet")
+    if args.model == "gpt2":
+        from twinlens.twin.transcoders import TranscoderSet
+
+        model, tcs, hook = GPT2.load("gpt2"), TranscoderSet(12), "hook_mlp_out"
+    else:
+        from twinlens.core.gemma2 import Gemma2
+        from twinlens.twin.transcoders import GemmaScopeTranscoderSet
+
+        model, hook = Gemma2.load(), args.tc_out
+        tcs = GemmaScopeTranscoderSet(range(26), in_hook=args.tc_in, out_hook=args.tc_out)
     out = pd.Series(index=df.index, dtype=float)
     for pid, g in df.groupby("prompt_id"):
-        target, grads = mlp_out_grads(model, g.prompt.iloc[0])
+        target, grads = mlp_out_grads(model, g.prompt.iloc[0], hook)
         for i, r in g.iterrows():
             l, p, f = int(r.layer), int(r.pos), int(r.feature)
-            direction = tcs[l].W_dec[f].float()
+            direction = tcs[l].dec_rows([f])[0].float()
             out[i] = float(r.delta_act * (grads[l][p] @ direction))
         print(f"prompt {pid}: {len(g)} edits, target id {target}", flush=True)
     res = df[list(EDIT_KEY)].assign(atp_dlogp=out)
-    write_parquet(res, RESULTS / "fidelity_atp.parquet")
-    print(f"wrote {len(res)} rows -> {RESULTS / 'fidelity_atp.parquet'}")
+    path = RESULTS / f"fidelity_atp{tag}.parquet"
+    write_parquet(res, path)
+    print(f"wrote {len(res)} rows -> {path}")
 
     # Sanity check: on the gradient path, AtP and the twin's direct edge share the final
     # LayerNorm / unembedding; their sign should agree on most edits.

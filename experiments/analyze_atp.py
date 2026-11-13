@@ -1,12 +1,16 @@
 """Compare the attribution-patching baseline with today's graph and Fix B on the same edits.
 
-    python experiments/analyze_atp.py      (needs results/fidelity_atp.parquet from atp_baseline.py)
+    python experiments/analyze_atp.py [--model gemma2]
+    (needs results/fidelity_atp[_gemma2].parquet from atp_baseline.py)
 
-Adds ``atp_baseline`` to results/summary.json: per-predictor metrics with 95% cluster-bootstrap
-intervals over prompts, and paired differences Fix B − AtP on the same resampled edits.
+Adds ``atp_baseline`` (GPT-2) or ``atp_baseline_gemma2`` to results/summary.json: per-predictor
+metrics with 95% cluster-bootstrap intervals over prompts, and paired differences Fix B − AtP on
+the same resampled edits.
 """
 
 from __future__ import annotations
+
+import argparse
 
 import numpy as np
 import pandas as pd
@@ -23,10 +27,16 @@ BOOT_PAIRED = 1000
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", choices=["gpt2", "gemma2"], default="gpt2")
+    args = ap.parse_args()
+    tag = "" if args.model == "gpt2" else f"_{args.model}"
     rng = np.random.default_rng(SEED)
-    df = pd.read_parquet(RESULTS / "fidelity.parquet")
-    atp = pd.read_parquet(RESULTS / "fidelity_atp.parquet")
-    check_edit_keys(df, atp, "fidelity_atp.parquet vs fidelity.parquet (re-run atp_baseline.py)")
+    df = pd.read_parquet(RESULTS / f"fidelity{tag}.parquet")
+    atp = pd.read_parquet(RESULTS / f"fidelity_atp{tag}.parquet")
+    check_edit_keys(
+        df, atp, f"fidelity_atp{tag}.parquet vs fidelity{tag}.parquet (re-run atp_baseline.py)"
+    )
     df["atp_dlogp"] = atp.atp_dlogp.to_numpy()
     df["atp_cos"] = np.nan  # AtP predicts one logit, not the full Δlogits
     df = add_derived(df, [*TWIN_LEVELS, *(f for f in FIX_LEVELS if f"{f}_dlogp" in df), "atp"])
@@ -45,15 +55,16 @@ def main() -> None:
 
     paired_diff = cluster_bootstrap(df, paired, BOOT_PAIRED, rng)
     out = {"levels": levels, "fixB_minus_atp": paired_diff, "n_edits": len(df)}
+    key = f"atp_baseline{tag}"
     meta = {
-        "atp_baseline": {
+        key: {
             "seed": SEED,
             "n_boot_levels": BOOT_LEVELS,
             "n_boot_paired": BOOT_PAIRED,
             "unit": "prompt",
         }
     }
-    update_summary({"atp_baseline": out}, meta=meta)
+    update_summary({key: out}, meta=meta)
     for lv in LEVELS:
         print(f"{lv:18s}", {k: [round(x, 3) for x in v] for k, v in levels[lv].items()})
     print("Fix B - AtP", {k: [round(x, 3) for x in v] for k, v in paired_diff.items()})

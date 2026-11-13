@@ -1,5 +1,6 @@
 """Does the fix generalise? Paired comparison of today's graph twin vs. the Jacobian fix on
-GPT-2 small (8,064 edits) and Qwen3-0.6B (2,304 edits, layers 10-27).
+GPT-2 small (8,064 edits), Qwen3-0.6B (2,304 edits, layers 10-27) and Gemma-2-2B (when
+results/fidelity_gemma2.parquet exists).
 
     python experiments/analyze_generalization.py
 
@@ -26,8 +27,11 @@ METRICS = ["spearman", "sign_agree", "within_tol_big", "catastrophic", "mean_err
 MODELS = {
     "gpt2": ("GPT-2 small", "fidelity.parquet"),
     "qwen3": ("Qwen3-0.6B", "fidelity_qwen3.parquet"),
+    "gemma2": ("Gemma-2-2B", "fidelity_gemma2.parquet"),
 }
-SEED = 0  # one generator for both models, in this order: levels, then the paired difference
+# one generator for all models, in this order (levels, then the paired difference); a model
+# appended at the end leaves the earlier models' intervals unchanged
+SEED = 0
 BOOT_LEVELS = 500
 BOOT_PAIRED = 1000
 
@@ -36,6 +40,9 @@ def main() -> None:
     rng = np.random.default_rng(SEED)
     out = {}
     for key, (label, file) in MODELS.items():
+        if not (RESULTS / file).exists():
+            print(f"{label}: {file} missing, skipped")
+            continue
         df = add_derived(pd.read_parquet(RESULTS / file), LEVELS)
         levels = {
             lv: cluster_bootstrap(

@@ -15,7 +15,7 @@ with per-layer transcoders, we make 8,064 feature interventions (ablate or ampli
 prompts in 8 task families. We predict each intervention's effect with a ladder of twins, each
 unfreezing one more component of the real model, and then measure it on the real model.
 
-Four findings:
+Five findings:
 
 1. **The linear twin that attribution graphs describe is a weak counterfactual predictor.** Its
    rank correlation with the real effect is ρ = 0.20 [0.14, 0.25]. On edits that measurably move
@@ -38,7 +38,9 @@ Four findings:
    The fix replicates on a second, architecturally different model, Qwen3-0.6B (§4.7): the
    paired improvement in ρ is +0.12 [0.05, 0.20] and catastrophic misses fall from 3.0% to
    0.8%. The gain is smaller than on GPT-2, on 16 prompts, with every paired interval
-   excluding zero (uncorrected for multiple metrics).
+   excluding zero (uncorrected for multiple metrics). It replicates again on Gemma-2-2B with
+   Gemma Scope transcoders (§4.9): 17,472 edits on all 26 layers, ρ 0.21 → 0.36, paired
+   Δρ +0.15 [0.12, 0.18].
 4. **Failures of today's graph can be anticipated without running the real model.** A logistic
    "trust model" over nine signals computed from the clean run alone predicts whether the
    graph prediction will hold: AUROC 0.93 on held-out prompts and on held-out *task families*
@@ -51,7 +53,9 @@ Four findings:
 5. **The fixed graph beats a gradient through the real model.** Attribution patching, one
    backward pass through GPT-2 itself with nothing frozen, reaches ρ = 0.38 and 77% sign
    agreement on the same edits. Fix B is better on both: Δρ +0.15 [0.11, 0.19] and +9 pp
-   [4, 14] in sign agreement, with the same error size (§4.8).
+   [4, 14] in sign agreement, with the same error size (§4.8). On Gemma-2-2B the margin is
+   smaller but still excludes zero: Δρ +0.05 [0.03, 0.08], +8 pp [4, 11] in sign agreement
+   (§4.9).
 
 Effects in this study are small: only 9.0% of edits move the output by more than 0.05 nats and
 96 edits by more than 0.2 nats. The rank and sign results are the robust ones; the
@@ -156,7 +160,7 @@ between consecutive levels attribute the twin's error to its sources.
 Each feature is both ablated and amplified. BOS is excluded. The 56 prompts span 8 families:
 factual recall, IOI, induction/copying, syntax, code, sequences (named `arithmetic` in the
 data), narrative and sentiment
-(`experiments/prompts.json`). That gives 8,064 edits × 6 models.
+(`experiments/prompts.json`). That gives 8,064 edits, each predicted by five twin levels and two fixes and measured on the real model.
 
 **Metrics.**
 - Spearman ρ between predicted and real Δlog p.
@@ -302,7 +306,7 @@ the softmax turns that into
 
     dp = p₀ ⊙ (ds − Σₖ p₀ ds).
 
-The head output z = p·v then becomes z = p₀v + p₀·dv + dp·v₀. We drop the product of the two
+The head output z = p·v then becomes z = p₀v₀ + p₀·dv + dp·v₀. We drop the product of the two
 changes (dp·dv), which is second-order.
 
 Adding both terms keeps the model linear: Fix B is affine in the perturbation (tested), and it
@@ -377,9 +381,9 @@ live-norm/live-attention twin to within 5% on a 1% edit.
 
 | Level | ρ [95% CI] | sign agree | within tol (big) | catastrophic | mean err |
 |---|---|---|---|---|---|
-| Graph today | 0.34 [0.22, 0.42] | 78.5% | 51.5% | 3.0% | 0.138 |
-| Fix A | 0.42 [0.32, 0.50] | 85.6% | 58.6% | 1.4% | 0.083 |
-| Fix B | 0.45 [0.36, 0.54] | 87.7% | 62.0% | 0.8% | 0.070 |
+| Graph today | 0.33 [0.23, 0.43] | 78.5% | 51.5% | 3.0% | 0.138 |
+| Fix A | 0.42 [0.33, 0.50] | 85.6% | 58.6% | 1.4% | 0.083 |
+| Fix B | 0.45 [0.36, 0.53] | 87.7% | 62.0% | 0.8% | 0.070 |
 
 On induction prompts ρ rises from 0.04 to 0.28.
 
@@ -427,15 +431,60 @@ reading is that the twin's first-order expansion is taken through sparse transco
 with fixed ReLU gates, which behave more linearly under a feature-sized edit than the real
 GELU MLPs do; we have not tested this explanation.
 
+### 4.9 A third model: Gemma-2-2B
+
+We ported the twin to Gemma-2-2B (`twinlens/core/gemma2.py`, DECISIONS.md D4) with the Gemma
+Scope 16k-feature JumpReLU transcoders and circuit-tracer's per-layer L0 choice. Gemma adds
+four RMSNorms per block, alternating sliding-window attention, an attention-score softcap
+(`50 tanh(s/50)`, whose derivative Fix B includes) and a final logit softcap. Which activations
+the transcoders read and write was settled on real weights before the sweep: the
+pre-feedforward norm output *without* its weight, and the MLP output after the post-feedforward
+norm. That choice has the lowest reconstruction error (mean FVU 0.45 over layers 2, 8, 14 and
+20) and L0 close to the published values. Single-layer splice recovery is uneven, though: 1.00
+at layer 8, 0.34–0.45 at layers 14 and 20, and −0.50 at layer 2. So the Gemma replacement is
+weaker than GPT-2's.
+
+The scope is the full model: 17,472 edits on 56 prompts (the GPT-2 prompt set). In each of the
+26 layers, 3 top and 3 random active features are each ablated and amplified (12 edits per layer
+per prompt). BOS is never edited. Unlike
+on Qwen3, the nonlinear replacement twin was run, and so was attribution patching on the real
+model (`experiments/atp_baseline.py --model gemma2`).
+
+| Level | ρ [95% CI] | sign agree | within tol (big) | catastrophic | mean err |
+|---|---|---|---|---|---|
+| Direct edges | 0.22 [0.19, 0.26] | 75.0% | 83.4% | 0.02% | 0.012 |
+| Graph today | 0.21 [0.17, 0.24] | 77.3% | 78.5% | 0.02% | 0.019 |
+| Fix A | 0.29 [0.25, 0.32] | 83.2% | 85.2% | 0.01% | 0.012 |
+| Fix B | 0.36 [0.33, 0.39] | 87.4% | 89.6% | 0.01% | 0.011 |
+| Nonlinear replacement twin | 0.23 [0.20, 0.25] | 82.1% | 79.5% | 0.02% | 0.033 |
+| Attribution patching (real Gemma) | 0.31 [0.27, 0.34] | 79.9% | 85.2% | 0.01% | 0.011 |
+
+Paired, Fix B − graph today is Δρ +0.15 [0.12, 0.18], +10 pp [7, 14] in sign agreement and
++11 pp [8, 14] within tolerance on big edits. Fix B − attribution patching is Δρ +0.05
+[0.03, 0.08], +8 pp [4, 11] in sign agreement and +4 pp [1, 8] within tolerance; catastrophic
+misses and mean error are indistinguishable. The gain holds in every task family: ρ rises on
+all eight, most on IOI (0.12 → 0.34), syntax (0.19 → 0.38) and narrative (0.28 → 0.45), least
+on code (0.31 → 0.38).
+
+Three caveats. First, catastrophic misses are almost absent on Gemma at every level (at most 4
+of 17,472 edits), so that metric does not separate the levels here. Second, on big edits
+(n = 809) "no change" is within tolerance 80% of the time with mean error 0.011, so Fix B beats
+that baseline on tolerance (90%) but not on error size. Third, unlike on GPT-2, the nonlinear
+replacement twin is much *worse* than Fix B (ρ 0.23 against 0.36, mean error three times
+larger). A plausible reason is the weak splice recovery above: running the transcoders live at
+every downstream layer compounds their reconstruction error, while the linear twin only uses
+them through gates and Jacobians at the clean point. We have not tested this.
+
 ## 5. Limitations
 
-- **Two models, two transcoder families.** GPT-2 small with per-layer transcoders, and
+- **Three models, three transcoder families.** GPT-2 small with per-layer transcoders,
   Qwen3-0.6B with `circuit-tracer` transcoders, where we covered only the upper 18 layers and
-  far fewer edits (§4.7). Larger models and cross-layer transcoders, which the current
-  circuit-tracing work uses, remain untested.
-- **One gradient baseline.** §4.8 compares Fix B with attribution patching on GPT-2 only.
-  Integrated-gradient variants (Marks et al., 2024; Hanna et al., 2024) and AtP* (Kramár et
-  al., 2024) were not run, and the comparison was not repeated on Qwen3.
+  far fewer edits (§4.7), and Gemma-2-2B with Gemma Scope transcoders whose splice recovery is
+  uneven across layers (§4.9). Models beyond 2B parameters and cross-layer transcoders, which
+  the current circuit-tracing work uses, remain untested.
+- **One gradient baseline.** §4.8 and §4.9 compare Fix B with attribution patching on GPT-2
+  and Gemma-2-2B. Integrated-gradient variants (Marks et al., 2024; Hanna et al., 2024) and
+  AtP* (Kramár et al., 2024) were not run, and the comparison was not repeated on Qwen3.
 - **Only feature-to-output effects are tested.** A graph also asserts feature-to-feature
   edges; we never measure an intermediate feature's response to an edit.
 - **Effects are small and early layers dominate the failures.** See §3 and §4.1: few edits
@@ -498,13 +547,16 @@ python experiments/extend_sweep.py --modes linear_lnjac     # Fix A, ~10 min
 python experiments/extend_sweep.py --modes linear_fulljac   # Fix B, ~15 min
 python experiments/qwen_prepare.py                                   # Qwen3 transcoders, ~6 GB, ~70 min
 python experiments/fidelity_sweep.py --model qwen3 --per-family 2 --n-top 2 --n-random 2   # 2,304 edits, ~30 min
+python experiments/gemma_prepare.py                                  # Gemma-2-2B weights + Gemma Scope transcoders
+python experiments/fidelity_sweep.py --model gemma2 --n-top 3 --n-random 3   # 17,472 edits, ~5 h on 8 vCPU, 16 GB RAM
+python experiments/atp_baseline.py --model gemma2                    # attribution patching on Gemma
 make analyze        # analyze.py + analyze_generalization.py: summary.json, trust_model.json, figures
 make serve          # dashboard at http://localhost:8000
 ```
 
 The sweep's raw output (`experiments/results/fidelity.parquet`, 1.3 MB) is committed, so
 `make analyze` reproduces every number above without re-running the sweep (the robustness
-checks of §3–§4.7 are in the `robustness` and `generalization` blocks of `summary.json`). The
+checks of §3–§4.9 are in the `robustness` and `generalization` blocks of `summary.json`). The
 latency figures in the README come from `make bench`.
 
 ## References
