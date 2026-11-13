@@ -105,3 +105,52 @@ variants are > 1000) and L0 matches the published values (47.7/49, 63.4/52, 8.4/
 layers 2/8/14/20); with `hook_mlp_in`, L0 is 2-3x too high at layers 2 and 8. Those are now the
 defaults. Caveat: single-layer splice recovery is uneven (1.00 at layer 8, 0.34-0.45 at 14 and 20,
 -0.50 at layer 2), so the Gemma twin starts from a weaker replacement than GPT-2's.
+
+## D5. Cross-layer transcoder format, Gemma-2-2B 426K (2026-11-13)
+
+Read from `decoderesearch/circuit-tracer` (commit `8c35dc2`, 2026-10-17:
+`transcoder/cross_layer_transcoder.py`, `replacement_model/replacement_model_transformerlens.py`,
+`utils/tl_nnsight_mapping.py`, `graph.py`) and from the safetensors headers of
+`mntss/clt-gemma-2-2b-426k` (HTTP range reads, nothing downloaded). Several of these differ from
+what the extension plan assumed; the facts below are the ones to build on.
+
+- **Repo**: ungated. 81 files, 33.1 GB: `W_enc_{i}.safetensors` (i = 0..25, 75.5 MB each),
+  `W_dec_{i}.safetensors` (1.96 GB for i = 0 down to 75.5 MB for i = 25, 26.5 GB in all),
+  `features/layer_{i}.bin` (≈4.6 GB, feature visualisations, not needed) and `config.yaml`
+  (`model_name: google/gemma-2-2b`, `model_kind: cross_layer_transcoder`,
+  `feature_input_hook: hook_resid_mid`, `feature_output_hook: hook_mlp_out`).
+- **Tensors, all BF16**: `W_enc_i` [16384, 2304] (feature-major, the transpose of the Gemma Scope
+  PLT layout), `b_enc_i` [16384], `b_dec_i` [2304] (stored in the *encoder* file), `W_dec_i`
+  [16384, 26 − i, 2304]: feature f of layer i has one output vector for every layer l' = i..25,
+  at index l' − i. 26 layers × 16384 = 425,984 features. No `threshold_i` and no `W_skip_i`.
+- **Activation: ReLU, not JumpReLU.** `load_clt` picks JumpReLU only when `threshold_i` exists,
+  and it does not here. So `acts = relu(resid_mid @ W_enc_iᵀ + b_enc_i)`.
+- **Input: the raw residual `hook_resid_mid`** (the input of `pre_feedforward_layernorm`), with no
+  norm in front of the encoder. The Gemma Scope PLTs read `ln2.hook_normalized` instead (D4).
+  Our `twinlens/core/gemma2.py` already exposes `hook_resid_mid`.
+- **Output: `hook_mlp_out`**, after `post_feedforward_layernorm`, as for the PLTs. Reconstruction:
+  `mlp_out[l'] ≈ Σ_{i ≤ l'} Σ_f acts_i[f] · W_dec_i[f, l' − i] + b_dec_{l'}`. The plan's
+  assumed shape holds. Since `ln2` and `ln2_post` sit wholly inside the replaced MLP, the only
+  norms left on the twin's path are `ln1`, `ln1_post` and the final norm.
+- **Size**: 28.5 GB to download (encoders + decoders, BF16); 57 GB if converted to F32. Decision:
+  keep BF16 on disk, memory-map, convert only the rows read (active features) to F32. The full
+  encoder (1.96 GB BF16) is read per layer for the clean trace.
+- **BOS**: attribution zeroes all feature activations at position 0 (`zero_positions =
+  slice(0, 1)`); Gemma prepends BOS, so the twin does the same for the CLT.
+- **Intervention in the real model** (`feature_intervention`, `constrained_layers=None`, i.e.
+  iterative patching): at layer i's `hook_mlp_out` it reads the feature's *current* activation
+  (recomputed from the live residual), sets `Δ = value − current`, and adds
+  `Δ · W_dec_i[f, l' − i]` to `hook_mlp_out[l']` for every l' ≥ i. All MLPs stay the real ones;
+  later features are not clamped. This matches the plan's definition of `real`. One difference:
+  the **default is `freeze_attention=True`**, which freezes `hook_pattern` (attention patterns)
+  at their clean values; norms and MLPs still run live. With `constrained_layers` covering all
+  layers it also freezes norm scales and the MLP outputs, which gives direct effects.
+  Decision: `real` stays fully live, as for every existing number in the report, and the CLT
+  sweep adds a second ground truth `real_frozen_attn` that reproduces circuit-tracer's default,
+  so both comparisons can be reported. Fixed now, before any sweep.
+- **Graph conventions** (needed for the parity check, plan 0.6): logit nodes use the *demeaned*
+  unembedding column (`W_U[:, t] − mean_t W_U`), and edges are checked with the final softcap
+  switched off (`zero_softcap`), so feature→logit edges are pre-softcap and demeaned. Pruning
+  defaults: `node_threshold = 0.8`, `edge_threshold = 0.98`; targets: `max_n_logits = 10`,
+  `desired_logit_prob = 0.95`; `max_feature_nodes = None`. circuit-tracer itself tests this CLT
+  (`tests/test_attributions_gemma.py::test_gemma_2_2b_clt`, CUDA only).
