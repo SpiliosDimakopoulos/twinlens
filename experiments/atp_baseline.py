@@ -53,29 +53,41 @@ def main() -> None:
     ap.add_argument("--model", choices=["gpt2", "gemma2"], default="gpt2")
     ap.add_argument("--tc-in", default="ln2.hook_normalized", help="gemma2: transcoder input hook")
     ap.add_argument("--tc-out", default="hook_mlp_out", help="gemma2: transcoder output hook")
+    ap.add_argument("--transcoders", choices=["plt", "clt426k"], default="plt")
+    ap.add_argument("--small", action="store_true", help="the --small sweep's edits")
     args = ap.parse_args()
     tag = "" if args.model == "gpt2" else f"_{args.model}"
-    df = pd.read_parquet(RESULTS / f"fidelity{tag}.parquet")
+    if args.transcoders == "clt426k":
+        tag += "_clt"
+    small = "_small" if args.small else ""
+    df = pd.read_parquet(RESULTS / f"fidelity{small}{tag}.parquet")
     if args.model == "gpt2":
         from twinlens.twin.transcoders import TranscoderSet
 
         model, tcs, hook = GPT2.load("gpt2"), TranscoderSet(12), "hook_mlp_out"
     else:
         from twinlens.core.gemma2 import Gemma2
-        from twinlens.twin.transcoders import GemmaScopeTranscoderSet
+        from twinlens.twin.transcoders import CrossLayerTranscoderSet, GemmaScopeTranscoderSet
 
         model, hook = Gemma2.load(), args.tc_out
-        tcs = GemmaScopeTranscoderSet(range(26), in_hook=args.tc_in, out_hook=args.tc_out)
+        if args.transcoders == "clt426k":
+            tcs, hook = CrossLayerTranscoderSet(26), CrossLayerTranscoderSet.out_hook
+        else:
+            tcs = GemmaScopeTranscoderSet(range(26), in_hook=args.tc_in, out_hook=args.tc_out)
     out = pd.Series(index=df.index, dtype=float)
     for pid, g in df.groupby("prompt_id"):
         target, grads = mlp_out_grads(model, g.prompt.iloc[0], hook)
         for i, r in g.iterrows():
             l, p, f = int(r.layer), int(r.pos), int(r.feature)
-            direction = tcs[l].dec_rows([f])[0].float()
-            out[i] = float(r.delta_act * (grads[l][p] @ direction))
+            rows = tcs[l].dec_rows([f])[0].float()
+            if rows.dim() == 1:  # per-layer transcoder: one output layer
+                out[i] = float(r.delta_act * (grads[l][p] @ rows))
+            else:  # cross-layer: the feature writes rows[j] into layer l + j
+                g_out = torch.stack([grads[l + j][p] for j in range(len(rows))])
+                out[i] = float(r.delta_act * (g_out * rows).sum())
         print(f"prompt {pid}: {len(g)} edits, target id {target}", flush=True)
     res = df[list(EDIT_KEY)].assign(atp_dlogp=out)
-    path = RESULTS / f"fidelity_atp{tag}.parquet"
+    path = RESULTS / f"fidelity_atp{small}{tag}.parquet"
     write_parquet(res, path)
     print(f"wrote {len(res)} rows -> {path}")
 
