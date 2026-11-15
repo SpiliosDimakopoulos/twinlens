@@ -262,8 +262,18 @@ class Twin:
         return self._dec_rows(layer, [feature])[0]
 
     # ------------------------------------------------------------- simulation
-    def run(self, trace: CleanTrace, mode: Mode, edits: list[FeatureEdit | None]) -> torch.Tensor:
-        """Run one batch row per edit (``None`` = no edit); return last-position logits."""
+    def run(
+        self,
+        trace: CleanTrace,
+        mode: Mode,
+        edits: list[FeatureEdit | None],
+        capture: dict[int, torch.Tensor] | None = None,
+    ) -> torch.Tensor:
+        """Run one batch row per edit (``None`` = no edit); return last-position logits.
+
+        With ``capture``, the transcoder input of every source layer in this run (after the
+        level's own norm treatment) is stored there as ``[B, pos, d_model]``, so that a
+        downstream feature's pre-activation can be read off (``fidelity/edges.py``)."""
         m = self.model
         B = len(edits)
         tokens = trace.tokens.expand(B, -1)
@@ -286,6 +296,8 @@ class Twin:
                 ]
         else:
             hooks = self._twin_hooks(trace, LEVELS[mode], start, by_layer)
+        if capture is not None:  # appended last: sees the input the twin itself uses
+            hooks += [(f"blocks.{l}.{self.tc_hook}", _record(capture, l)) for l in self.layers]
         with m.hooks(hooks):
             return m(tokens, last_only=True)[:, -1]
 

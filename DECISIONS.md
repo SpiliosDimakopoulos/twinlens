@@ -200,3 +200,42 @@ analysed for the decision). Script: `experiments/analyze_clt.py`, section `gemma
   - **B** (CLTs fix it themselves): `lo ≤ 0` and `g_hi ≥ 0`;
   - **C** (mixed): anything else.
   The script prints the outcome; it is not revisited after seeing the numbers.
+
+## D8. Feature-to-feature edges: definition and analysis, fixed before code (2026-11-15)
+
+Plan phase 1. So far only feature → output effects were tested; a graph also asserts
+"feature A moves feature B by w". This fixes what that claim means and how it is scored before
+any edge number exists.
+
+- **Edits**: exactly the edits of the output sweeps (`sample_edits`, seed = prompt id; GPT-2
+  `--n-top 2 --n-random 2`, Gemma PLT and CLT `--n-top 3 --n-random 3`), so every edge row
+  joins the output row of its edit. Edits in the last layer have no targets and are skipped.
+- **Targets** of an edit at (l, p, f): features (l′, p′, f′) with l′ > l, p′ ≥ p, p′ > 0 (no
+  BOS) and clean activation > 0. An edit changes `mlp_out[l]`, which no transcoder at layer ≤ l
+  reads, hence l′ > l. Per edit, K = 10 targets with the largest |graph prediction| (the
+  `linear` level below) and K = 10 drawn uniformly from the other targets (seeded), so that the
+  test is not limited to what the graph itself picked (`selection` = top / random).
+- **Quantity**: the target's pre-activation `pre = x · W_enc[f′] + b_enc[f′]`, where x is the
+  transcoder input at (l′, p′) in the run. Clean value `pre0`, clean activation `act0 > 0`.
+  - *Prediction of a twin level* (`linear`, `linear_lnjac`, `linear_fulljac`): the change of
+    `pre` inside that level's run. The gates are frozen and every target is clean-active, so
+    this is also the predicted change of the activation. For `linear` it is exactly the
+    attribution graph's edge weight times Δa (the linear twin is the graph).
+  - *Truth*: `pre` in the real model with the edit (`real`, everything live; and
+    `real_frozen_attn`, circuit-tracer's default intervention), passed through the
+    transcoder's own nonlinearity (ReLU or JumpReLU) to give `Δact_real = act_real − act0`.
+    `Δpre_real` is kept as well, so that the error splits into a linearisation part
+    (prediction − Δpre_real) and a gate part (Δpre_real − Δact_real, non-zero only when the
+    target turns off).
+- **Metrics** (script `experiments/analyze_edges.py`, block `edges_<model>` in `summary.json`,
+  seed 0, 1000 cluster-bootstrap resamples over prompts):
+  - primary: Spearman ρ between predicted and real Δact over all (edit, target) pairs, per
+    level, with the paired difference Fix B − linear;
+  - ρ of the relative change Δact / act0 (scale-free across features);
+  - sign agreement on targets that really move (|Δact_real| > 0.1 · act0);
+  - share of targets that turn off in the real model (gate errors), and the share of the
+    squared error that is the gate part;
+  - all of the above by selection (top / random) and by distance l′ − l.
+- **Reading** (not a gate, the phase continues either way): the graph's internal edges are
+  "trustworthy" to the degree their ρ matches the output ρ of the same level; Fix B "helps
+  inside the graph" if the interval of its Δρ over linear is above zero.
