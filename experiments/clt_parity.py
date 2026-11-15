@@ -15,6 +15,7 @@ off, BOS features are zero, attention patterns and norm scales are frozen.
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import sys
 from pathlib import Path
@@ -24,6 +25,7 @@ from common import RESULTS, ROOT
 
 N_PROMPTS = 3
 OUT = RESULTS / "clt_parity"
+CT_BATCH = 8
 CLT_DIR = None  # default: CrossLayerTranscoderSet's cache directory
 
 
@@ -83,22 +85,29 @@ def stage_ct() -> None:
     model = ReplacementModel.from_pretrained_and_transcoders(
         "unsloth/gemma-2-2b", clt, backend="nnsight", device=cpu, dtype=torch.float32
     )
-    out = []
-    for p in ours:
+    # saved after every prompt and resumed, so a killed run keeps the prompts already done
+    path = OUT / "ct.pt"
+    out = torch.load(path) if path.exists() else []
+    for p in ours[len(out) :]:
         tokens = torch.tensor(p["tokens"])
         graph = attribute(
             tokens,
             model,
             attribution_targets=torch.tensor([p["target"]]),
-            batch_size=64,
-            max_feature_nodes=8,  # only the logit row is needed: it covers every feature
+            batch_size=CT_BATCH,  # small: the 8k-feature induction prompt ran out of 16 GB at 64
+            # every feature node: the graph keeps only the columns of the selected features, so
+            # pruning to a few nodes would drop the logit edges of all the others
+            max_feature_nodes=None,
         )
-        n = len(graph.active_features)
-        row = graph.adjacency_matrix[-1, :n].float()  # the single logit node
-        keys = [tuple(int(x) for x in af) for af in graph.active_features.tolist()]
+        sel = graph.selected_features
+        n, n_active = len(sel), len(graph.active_features)
+        row = graph.adjacency_matrix[-1, :n].float()  # the single logit node, columns = sel
+        keys = [tuple(int(x) for x in af) for af in graph.active_features[sel].tolist()]
         out.append({"keys": keys, "edges": row.tolist()})
-        print(f"ct {p['category']}: {n} active features", flush=True)
-    torch.save(out, OUT / "ct.pt")
+        del graph
+        gc.collect()
+        torch.save(out, path)
+        print(f"ct {p['category']}: {n} of {n_active} features", flush=True)
 
 
 def stage_compare() -> None:

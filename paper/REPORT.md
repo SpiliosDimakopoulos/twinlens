@@ -475,13 +475,62 @@ larger). A plausible reason is the weak splice recovery above: running the trans
 every downstream layer compounds their reconstruction error, while the linear twin only uses
 them through gates and Jacobians at the clean point. We have not tested this.
 
+### 4.10 Cross-layer transcoders: the graphs circuit-tracer builds today
+
+Current circuit tracing uses cross-layer transcoders (CLTs): a feature read at layer l writes a
+separate vector into the MLP output of every layer l′ ≥ l (Ameisen et al., 2025). We extended
+the twin to CLTs with one code path, in which a per-layer transcoder is the special case of a
+decoder that writes only to its own layer (`CrossLayerTranscoderSet`, DECISIONS.md D5), and ran
+it with the public 426K-feature CLT for Gemma-2-2B (`mntss/clt-gemma-2-2b-426k`: 26 × 16,384
+ReLU features, reading the raw `resid_mid` and writing `mlp_out`). The twin's conventions follow
+circuit-tracer's graph: the target is the demeaned logit, the final softcap is off and BOS
+features are zero. On three prompts (factual, IOI, induction; 2,047 to 8,226 active features), the twin's feature → logit effects equal the edges of circuit-tracer's own graph built with the same CLT (`experiments/clt_parity.py`): Pearson r > 0.9999999 on every prompt, largest absolute difference 9 × 10⁻⁵ on edges up to 3.9. The only features circuit-tracer lists that the twin does not are layer-25 features at earlier positions, whose edge is exactly zero on both sides. So the numbers below are about the graph circuit-tracer builds, not about a reimplementation of it.
+
+The analysis and the decision rule were fixed before the sweep ran (DECISIONS.md D7,
+`experiments/analyze_clt.py`). Edits were chosen as for §4.9: 17,466 edits on the 56 prompts
+(six fewer than §4.9 because of selection ties in three prompts). The nonlinear replacement
+twin was not run, because it needs a full encode of all 426K features per run. In the real
+model an edit adds Δa · W_dec[l→l′][f] to every downstream `mlp_out[l′]` and everything else is
+recomputed live; circuit-tracer's default intervention, which freezes attention patterns, is
+reported as a second ground truth.
+
+| Level (CLT) | ρ [95% CI] | sign agree (big) | within tol (big) | catastrophic | mean err |
+|---|---|---|---|---|---|
+| Direct edges | 0.28 [0.24, 0.31] | 73.4% | 77.8% | 0.01% | 0.015 |
+| Graph today | 0.27 [0.24, 0.30] | 74.6% | 68.3% | 0.29% | 0.025 |
+| Fix A | 0.33 [0.30, 0.36] | 74.0% | 70.5% | 0.18% | 0.021 |
+| Fix B | 0.40 [0.37, 0.42] | 79.0% | 74.5% | 0.13% | 0.019 |
+| Attribution patching (real Gemma) | 0.39 [0.37, 0.42] | 80.1% | 81.5% | 0.03% | 0.014 |
+
+Paired, Fix B − graph today is Δρ +0.13 [0.10, 0.16], +4 pp [1, 8] in sign agreement and
++6 pp [1, 11] within tolerance on big edits (n = 1,198); it also has fewer catastrophic misses
+(−0.2 pp [−0.3, −0.1]). The pre-registered gate came out **A**: the interval of Δρ is above
+zero, and the CLT graph without the fix ranks effects worse than the per-layer graph with it
+(ρ(CLT linear) − ρ(PLT Fix B) = −0.09 [−0.12, −0.05] on the same prompts). Cross-layer
+transcoders do help on their own: the plain CLT graph has ρ 0.27 against 0.21 for the per-layer
+graph (§4.9), and Fix B on the CLT reaches 0.40 against 0.36. The gain holds in every task
+family (most on IOI, 0.14 → 0.33, and arithmetic, 0.25 → 0.44; least on narrative,
+0.42 → 0.47) and grows with depth: by edited layer, Fix B's ρ rises from 0.15–0.35 in layers
+0–11 to 0.59–0.83 in layers 20–25, where it is highest of all levels at the last layer.
+
+The comparison with attribution patching is less favourable than on the per-layer models.
+Fix B − attribution patching is Δρ +0.01 [−0.02, 0.03] and −1 pp [−5, 3] in sign agreement,
+both indistinguishable, while attribution patching is better within tolerance (−7 pp
+[−11, −4] for Fix B) and in mean error. So on CLTs the fix makes the graph as good a ranker as
+a gradient through the real model, but not a better one, and its absolute errors are larger.
+Against circuit-tracer's frozen-attention ground truth, which agrees with the fully live one at
+ρ 0.80, Fix B's margin over the plain graph shrinks to Δρ +0.05 [0.02, 0.08] and Fix A ranks
+best (ρ 0.41 against 0.39 for Fix B): part of what Fix B restores is the attention response
+that this ground truth removes by construction.
+
 ## 5. Limitations
 
 - **Three models, three transcoder families.** GPT-2 small with per-layer transcoders,
   Qwen3-0.6B with `circuit-tracer` transcoders, where we covered only the upper 18 layers and
   far fewer edits (§4.7), and Gemma-2-2B with Gemma Scope transcoders whose splice recovery is
-  uneven across layers (§4.9). Models beyond 2B parameters and cross-layer transcoders, which
-  the current circuit-tracing work uses, remain untested.
+  uneven across layers (§4.9). Cross-layer transcoders were tested on one model only
+  (Gemma-2-2B with the 426K CLT, §4.10), without the nonlinear replacement twin. Models beyond
+  2B parameters remain untested.
 - **One gradient baseline.** §4.8 and §4.9 compare Fix B with attribution patching on GPT-2
   and Gemma-2-2B. Integrated-gradient variants (Marks et al., 2024; Hanna et al., 2024) and
   AtP* (Kramár et al., 2024) were not run, and the comparison was not repeated on Qwen3.
