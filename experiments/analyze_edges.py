@@ -10,10 +10,12 @@ resamples), computed on numpy arrays because the tables have one row per (edit, 
 from __future__ import annotations
 
 import argparse
+import json
 
 import numpy as np
 import pandas as pd
-from common import RESULTS, update_summary
+from common import FIGS, RESULTS, update_summary
+from figures import EDGE_MODELS, edges_figure
 from scipy.stats import rankdata
 
 LEVELS = ("linear", "linear_lnjac", "linear_fulljac")
@@ -98,6 +100,9 @@ def main() -> None:
         f"{key}: rho linear {a['linear/spearman']}, fix {a['linear_fulljac/spearman']}, "
         f"fix - linear {a['fix_minus_linear/spearman']}"
     )
+    summary = json.loads((RESULTS / "summary.json").read_text())
+    if not small and all(f"edges_{m}" in summary for m in EDGE_MODELS):
+        edges_figure(summary, FIGS)
 
 
 if __name__ == "__main__":
