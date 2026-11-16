@@ -67,9 +67,14 @@ def sample_edits(
     return specs
 
 
-def _effect_metrics(clean: torch.Tensor, out: torch.Tensor, target: int) -> dict[str, torch.Tensor]:
+def _effect_metrics(
+    clean: torch.Tensor, out: torch.Tensor, target: int, contrast: int | None = None
+) -> dict[str, torch.Tensor]:
     lp_clean, lp = clean.log_softmax(-1), out.log_softmax(-1)
-    return {
+    extra = {}
+    if contrast is not None:  # change of the logit difference target - contrast (plan 2.2)
+        extra["dld"] = (out[:, target] - out[:, contrast]) - (clean[target] - clean[contrast])
+    return extra | {
         "dlogp": lp[:, target] - lp_clean[target],
         "kl": (lp_clean.exp() * (lp_clean - lp)).sum(-1),
         "top1": out.argmax(-1),
@@ -87,7 +92,10 @@ def run_prompt(
     chunk: int = 24,
     seed: int = 0,
     modes: tuple[str, ...] = TWIN_MODES,
+    contrast: int | None = None,
 ) -> list[dict]:
+    """Edits of one prompt, scored at every twin level against the real model. With a
+    ``contrast`` token id, also the change of the logit difference top-1 - contrast."""
     model = twin.model
     trace = twin.trace(model.to_tokens(text))
     clean = trace.logits[-1]
@@ -100,7 +108,7 @@ def run_prompt(
         batch = specs[start : start + chunk]
         edits = [s.edit for s in batch]
         outs = {mode: twin.run(trace, mode, edits) for mode in (*modes, "real")}
-        met = {mode: _effect_metrics(clean, o, target) for mode, o in outs.items()}
+        met = {mode: _effect_metrics(clean, o, target, contrast) for mode, o in outs.items()}
         real = met["real"]
         for i, spec in enumerate(batch):
             row = {
@@ -116,6 +124,8 @@ def run_prompt(
                 "real_kl": real["kl"][i].item(),
                 "real_flip": bool(real["top1"][i] != target),
             }
+            if contrast is not None:
+                row["real_dld"] = real["dld"][i].item()
             for mode in modes:
                 m = met[mode]
                 cos = torch.nn.functional.cosine_similarity(
@@ -127,5 +137,7 @@ def run_prompt(
                     f"{mode}_flip": bool(m["top1"][i] != target),
                     f"{mode}_cos": cos,
                 }
+                if contrast is not None:
+                    row[f"{mode}_dld"] = m["dld"][i].item()
             rows.append(row)
     return rows

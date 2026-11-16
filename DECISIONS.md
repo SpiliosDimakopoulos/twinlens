@@ -239,3 +239,46 @@ any edge number exists.
 - **Reading** (not a gate, the phase continues either way): the graph's internal edges are
   "trustworthy" to the degree their ρ matches the output ρ of the same level; Fix B "helps
   inside the graph" if the interval of its Δρ over linear is above zero.
+
+## D9. External prompts and a contrast target, fixed before the sweep (2026-11-15)
+
+Plan tasks 2.1 and 2.2. All numbers so far come from 56 prompts we wrote ourselves; the
+reviewer's first question is whether they hold on prompts we did not choose. This fixes the
+sets, the filter and the analysis before any external number exists.
+
+- **Sets** (script `experiments/build_external_prompts.py`, every source pinned to a revision):
+  - `ioi`: `mib-bench/ioi` test split (MIT), the MIB release of the Wang et al. (2023)
+    templates. Answer = indirect object, contrast = subject.
+  - `sva`: `nyu-mll/blimp` (CC BY 4.0), six subject-verb agreement paradigms
+    (regular/irregular plural 1-2, distractor relational noun, distractor relative clause),
+    pairs with `one_prefix_method`, cut before the single differing word. Answer = first token
+    of the grammatical verb, contrast = first token of the ungrammatical one.
+  - `factual`: `evandez/relations` (MIT), 13 LRE factual relations (Hernandez et al., 2024),
+    first prompt template. Answer = first token of the object, contrast = first token of
+    another object of the same relation (seeded).
+  - `greater_than` (GPT-2 only): generated from the template of Hanna et al. (2023), seven
+    nouns × YY ∈ 02..98; answer = the model's top-1 when it is a two-digit number above YY,
+    contrast = YY − 1. Gemma's tokenizer splits numbers into digits, so the family does not
+    exist there.
+  - CounterFact was left out: its data licence could not be confirmed.
+- **Filter**: answer and contrast are single (first) tokens and differ, and the model's top-1
+  next token is the answer. Candidates are shuffled with seed 0 per family; the first N that
+  pass are kept, separately per model (the sets differ between GPT-2 and Gemma). N = 100 per
+  family on GPT-2 (≤ 400 prompts) and N = 60 on Gemma (≤ 180), set by CPU cost (Gemma PLT and
+  CLT run ~0.6 s per edit, ~310 edits per prompt). If a family yields fewer, it is reported
+  with what it has; the filter is not loosened afterwards.
+- **Runs**: the output sweep unchanged (`fidelity_sweep.py --prompts external`, same edit
+  selection, levels and seeds as §4.1, §4.9, §4.10) on GPT-2, Gemma PLT and Gemma CLT. The
+  only addition is the second target `<level>_dld`: the change of logit(answer) −
+  logit(contrast), next to the existing Δ log p of the top-1 (= answer). Existing columns and
+  every number of the development set are unchanged.
+- **Analysis** (`experiments/analyze_external.py`, block `external_<model>` in
+  `summary.json`, seed 0, 1000 cluster bootstraps over prompts): the metrics of
+  `analyze_clt.py` per level (ρ, sign agreement and within tolerance on big edits,
+  catastrophic misses, mean error) and the paired Fix B − linear differences; for the second
+  target, Spearman ρ and sign agreement (on edits with |real Δ| > 0.1 nat) of the predicted
+  versus the real `dld`. Also per family.
+- **Reading**: the 56 prompts are "development", the external sets are "held-out". The
+  development claim "Fix B improves ρ over the graph" replicates on a model if the interval of
+  the paired Δρ on the external set is above zero. A failed replication is reported with the
+  same weight. The trust model is not refitted here (task 2.6).

@@ -46,16 +46,34 @@ def main() -> None:
         help="gemma2: per-layer Gemma Scope transcoders or the 426K cross-layer transcoder",
     )
     ap.add_argument("--modes", default="", help="comma-separated twin levels (default: per model)")
+    ap.add_argument(
+        "--prompts",
+        choices=["dev", "external"],
+        default="dev",
+        help="the 56 development prompts, or the held-out external sets (D9) with a contrast token",
+    )
     args = ap.parse_args()
 
-    corpus = json.loads((ROOT / "experiments" / "prompts.json").read_text())
     keep = 1 if args.small else (args.per_family or None)
-    prompts = [(cat, p) for cat, ps in corpus.items() for p in ps[:keep]]
+    if args.prompts == "external":
+        ext = json.loads(
+            (ROOT / "experiments" / f"prompts_external_{args.model}.json").read_text("utf-8")
+        )
+        prompts = [
+            (fam, p["prompt"], p["contrast_id"])
+            for fam, block in ext["families"].items()
+            for p in block["prompts"][:keep]
+        ]
+    else:
+        corpus = json.loads((ROOT / "experiments" / "prompts.json").read_text())
+        prompts = [(cat, p, None) for cat, ps in corpus.items() for p in ps[:keep]]
     tag = "" if args.model == "gpt2" else f"_{args.model}"
     if args.transcoders == "clt426k":
         if args.model != "gemma2":
             ap.error("--transcoders clt426k needs --model gemma2")
         tag += "_clt"
+    if args.prompts == "external":
+        tag += "_ext"
     out = Path(args.out) / (("raw_small" if args.small else "raw") + tag)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -84,7 +102,7 @@ def main() -> None:
     if args.modes:
         modes = tuple(args.modes.split(","))
     t0 = time.perf_counter()
-    for i, (cat, text) in enumerate(prompts):
+    for i, (cat, text, contrast) in enumerate(prompts):
         path = out / f"{i:04d}.parquet"
         if path.exists():
             continue
@@ -93,7 +111,16 @@ def main() -> None:
             print("time budget reached; rerun to resume", flush=True)
             return
         rows = run_prompt(
-            twin, text, cat, i, args.n_top, args.n_random, chunk=args.chunk, seed=i, modes=modes
+            twin,
+            text,
+            cat,
+            i,
+            args.n_top,
+            args.n_random,
+            chunk=args.chunk,
+            seed=i,
+            modes=modes,
+            contrast=contrast,
         )
         write_parquet(pd.DataFrame(rows), path)  # atomic: a crash never leaves a partial file
         print(
