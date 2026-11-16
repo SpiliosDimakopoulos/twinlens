@@ -10,10 +10,13 @@ resamples), computed on numpy arrays because the tables have one row per (edit, 
 from __future__ import annotations
 
 import argparse
+import json
+import multiprocessing
 
 import numpy as np
 import pandas as pd
-from common import RESULTS, update_summary
+from common import FIGS, RESULTS, update_summary
+from figures import EDGE_MODELS, edges_figure
 from scipy.stats import rankdata
 
 LEVELS = ("linear", "linear_lnjac", "linear_fulljac")
@@ -50,17 +53,31 @@ def _metrics(c: dict[str, np.ndarray], truth: str) -> dict[str, float]:
     return out
 
 
-def _boot(d: pd.DataFrame, truth: str, rng: np.random.Generator) -> dict[str, list[float]]:
+_COLS: dict = {}
+
+
+def _one(args: tuple[str, np.ndarray]) -> dict[str, float]:
+    truth, pick = args
+    g = _COLS["groups"]
+    return _metrics({c: np.concatenate([g[i][c] for i in pick]) for c in _COLS["cols"]}, truth)
+
+
+def _boot(
+    d: pd.DataFrame, truth: str, rng: np.random.Generator, workers: int = 1
+) -> dict[str, list[float]]:
     cols = ["act0", *(f"{lv}_dact" for lv in LEVELS), f"{truth}_dact", f"{truth}_dpre"]
     groups = {k: {c: g[c].to_numpy() for c in cols} for k, g in d.groupby("prompt_id")}
     ids = list(groups)
     point = _metrics({c: d[c].to_numpy() for c in cols}, truth)
-    samples = []
-    for _ in range(BOOT):
-        pick = rng.choice(ids, size=len(ids), replace=True)
-        samples.append(
-            _metrics({c: np.concatenate([groups[i][c] for i in pick]) for c in cols}, truth)
-        )
+    # all resamples drawn first, in order, so the result does not depend on ``workers``
+    picks = [rng.choice(ids, size=len(ids), replace=True) for _ in range(BOOT)]
+    _COLS.update(groups=groups, cols=cols)
+    if workers > 1:
+        ctx = multiprocessing.get_context("fork")
+        with ctx.Pool(workers) as pool:
+            samples = pool.map(_one, [(truth, p) for p in picks], chunksize=8)
+    else:
+        samples = [_one((truth, p)) for p in picks]
     res: dict[str, list[float]] = {}
     for k, v in point.items():
         vals = np.array([s[k] for s in samples], dtype=float)
@@ -72,6 +89,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tag", required=True)
     ap.add_argument("--small", action="store_true")
+    ap.add_argument("--workers", type=int, default=1, help="processes for the bootstrap")
     args = ap.parse_args()
     small = "_small" if args.small else ""
     d = pd.read_parquet(RESULTS / f"edges{small}_{args.tag}.parquet")
@@ -81,13 +99,13 @@ def main() -> None:
     for truth in TRUTHS:
         if f"{truth}_dact" not in d:
             continue
-        block = {"all": _boot(d, truth, rng)}
+        block = {"all": _boot(d, truth, rng, args.workers)}
         for sel, g in d.groupby("target_selection"):
-            block[f"selection={sel}"] = _boot(g, truth, rng)
+            block[f"selection={sel}"] = _boot(g, truth, rng, args.workers)
         for name, (lo, hi) in DIST_BINS.items():
             g = d[(d.dist >= lo) & (d.dist <= hi)]
             if g.prompt_id.nunique() > 1:
-                block[f"dist={name}"] = _boot(g, truth, rng)
+                block[f"dist={name}"] = _boot(g, truth, rng, args.workers)
         res[f"vs_{truth}"] = block
     key = f"edges{small}_{args.tag}"
     update_summary(
@@ -98,6 +116,9 @@ def main() -> None:
         f"{key}: rho linear {a['linear/spearman']}, fix {a['linear_fulljac/spearman']}, "
         f"fix - linear {a['fix_minus_linear/spearman']}"
     )
+    summary = json.loads((RESULTS / "summary.json").read_text())
+    if not small and all(f"edges_{m}" in summary for m in EDGE_MODELS):
+        edges_figure(summary, FIGS)
 
 
 if __name__ == "__main__":

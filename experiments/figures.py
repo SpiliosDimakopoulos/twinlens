@@ -423,3 +423,67 @@ def generalization_figure(gen: dict, out: Path) -> None:
     )
     fig.tight_layout(rect=(0, 0, 1, 0.9))
     _save(fig, out, "F7_generalization")
+
+
+EDGE_MODELS = {
+    "gpt2": "GPT-2 small (PLT)",
+    "gemma2": "Gemma-2-2B (PLT)",
+    "gemma2_clt": "Gemma-2-2B (CLT)",
+}
+EDGE_LEVELS = {"linear": "Graph today", "linear_lnjac": "+ LN Jacobian", "linear_fulljac": "Fix B"}
+
+
+def edges_figure(summary: dict, out: Path) -> None:
+    """Feature -> feature edges: rank correlation with the real change of the target's
+    activation, by layer distance l' - l, per model and twin level (DECISIONS.md D8)."""
+    models = [m for m in EDGE_MODELS if f"edges_{m}" in summary]
+    fig, axes = plt.subplots(1, len(models), figsize=(4.3 * len(models), 3.3), sharey=True)
+    axes = [axes] if len(models) == 1 else list(axes)
+    colors = {"linear": BASE, "linear_lnjac": LADDER[2], "linear_fulljac": LADDER[4]}
+    for ax, m in zip(axes, models, strict=True):
+        block = summary[f"edges_{m}"]["vs_real"]
+        bins = [k.split("=", 1)[1] for k in block if k.startswith("dist=")]
+        x = list(range(len(bins)))
+        for j, (lv, name) in enumerate(EDGE_LEVELS.items()):
+            vals = [block[f"dist={b}"][f"{lv}/spearman"] for b in bins]
+            pts = [v[0] for v in vals]
+            err = [
+                [p - v[1] for p, v in zip(pts, vals, strict=True)],
+                [v[2] - p for p, v in zip(pts, vals, strict=True)],
+            ]
+            xs = [xi + (j - 1) * 0.08 for xi in x]
+            ax.errorbar(
+                xs,
+                pts,
+                yerr=err,
+                color=colors[lv],
+                marker="o",
+                ms=4,
+                lw=1.6,
+                elinewidth=1,
+                capsize=2,
+                label=name,
+                zorder=3,
+            )
+        a = block["all"]
+        ax.set_title(
+            f"{EDGE_MODELS[m]}\nall pairs: ρ {a['linear/spearman'][0]:.2f} → "
+            f"{a['linear_fulljac/spearman'][0]:.2f}",
+            fontsize=10,
+        )
+        ax.set_xticks(x, bins, fontsize=FS_TICK)
+        ax.set_xlabel("layers between source and target (l′ − l)", fontsize=FS_NOTE)
+        ax.tick_params(axis="x", length=0)
+        ax.axhline(0, color=BASE, linewidth=1, zorder=1)
+    axes[0].set_ylabel("ρ with real Δ activation", fontsize=FS_NOTE)
+    axes[-1].legend(fontsize=FS_LABEL, loc="best")
+    fig.suptitle(
+        "Feature → feature edges: how well the graph ranks the real change of downstream features",
+        x=0.01,
+        ha="left",
+        fontsize=FS_SUPTITLE,
+        fontweight="bold",
+        color=INK,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    _save(fig, out, "F9_edges")

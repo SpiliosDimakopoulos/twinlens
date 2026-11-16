@@ -523,6 +523,54 @@ Against circuit-tracer's frozen-attention ground truth, which agrees with the fu
 best (ρ 0.41 against 0.39 for Fix B): part of what Fix B restores is the attention response
 that this ground truth removes by construction.
 
+### 4.11 Feature → feature edges
+
+Sections 4.1 to 4.10 test only what a feature does to the output. An attribution graph also
+asserts edges between features: "feature A moves feature B by w". We tested those edges on the
+same edits (DECISIONS.md D8, fixed before any edge number; `twinlens/fidelity/edges.py`,
+`experiments/edge_sweep.py`, `experiments/analyze_edges.py`). For each edit at (l, p, f) the
+targets are downstream features (l′ > l, p′ ≥ p, active on the clean prompt): the 10 with the
+largest predicted change according to the graph, and 10 drawn at random from the rest, so that
+the test does not only cover what the graph itself selects. The prediction of a level is the
+change of the target's pre-activation inside that twin, which for the plain linear twin is
+exactly the graph's edge weight times Δa. The truth is the target's activation when its
+transcoder reads the residual stream of the real model after the edit. All numbers are 95%
+cluster bootstraps over the 56 prompts.
+
+| Model (transcoders) | pairs | ρ graph today | ρ Fix B | Δρ Fix B − graph | sign agree, graph → Fix B |
+|---|---|---|---|---|---|
+| GPT-2 small (PLT) | 98,560 | 0.45 [0.43, 0.47] | 0.68 [0.66, 0.69] | +0.23 [0.21, 0.24] | 76.3% → 86.9% |
+| Gemma-2-2B (PLT) | 336,000 | 0.49 [0.47, 0.51] | 0.57 [0.56, 0.59] | +0.08 [0.08, 0.09] | 88.0% → 89.8% |
+| Gemma-2-2B (CLT 426K) | 315,658 | 0.61 [0.59, 0.62] | 0.65 [0.64, 0.67] | +0.04 [0.04, 0.05] | 84.2% → 86.2% |
+
+Sign agreement is measured on targets that really move (|Δact| > 0.1 · act₀).
+
+![Feature-to-feature edges](../experiments/figures/F9_edges.png)
+
+Three things stand out. First, the graph's internal edges are more faithful than its
+feature → output effects. Without the fix the graph ranks the change of downstream features
+at ρ 0.45, 0.49 and 0.61, against 0.20, 0.21 and 0.27 for the change of the output on the
+same edits (§4.5, §4.9, §4.10). Second, fidelity falls with the number of layers between the
+two features, as for the output (§4.3): one layer apart, Fix B predicts the ranking almost
+perfectly on all three models (ρ 0.99, 0.99 and 1.00; graph today 0.81, 0.92 and 0.94), while
+eight or more layers apart ρ is 0.39, 0.25 and 0.47 (graph today 0.17, 0.21 and 0.43). At one
+layer distance most of Fix B's remaining squared error comes from targets that switch off in
+the real model, which no linear prediction can follow. That is between 2.6% and 3.5% of the
+targets. Third, Fix B helps inside the graph on every model: the interval of Δρ lies above
+zero in every distance bin and for both target groups. The gain is largest on GPT-2 and on
+random targets (+0.31 [0.29, 0.32] on GPT-2, +0.16 on Gemma PLT, +0.10 on Gemma CLT), and it
+is smaller than at the output on both Gemma models.
+
+Against circuit-tracer's frozen-attention intervention as ground truth, the picture changes
+on the CLT. There, Fix B's gain over today's graph disappears (Δρ −0.01 [−0.01, −0.00]), and
+keeping only the LayerNorm Jacobian ranks best (ρ 0.67 against 0.66 for the plain graph). On
+the per-layer transcoders the gain shrinks but stays (+0.06 [0.05, 0.07] on Gemma, +0.16
+[0.14, 0.18] on GPT-2). As for the output (§4.10), what Fix B adds on the CLT is the response
+of attention, which this ground truth removes by construction. So for the question that
+circuit-tracer's intervention asks, the edges of today's CLT graph are already about as good
+as the fix makes them; read as statements about the model with live attention, they miss part
+of the effect.
+
 ## 5. Limitations
 
 - **Three models, three transcoder families.** GPT-2 small with per-layer transcoders,
@@ -534,8 +582,10 @@ that this ground truth removes by construction.
 - **One gradient baseline.** §4.8 and §4.9 compare Fix B with attribution patching on GPT-2
   and Gemma-2-2B. Integrated-gradient variants (Marks et al., 2024; Hanna et al., 2024) and
   AtP* (Kramár et al., 2024) were not run, and the comparison was not repeated on Qwen3.
-- **Only feature-to-output effects are tested.** A graph also asserts feature-to-feature
-  edges; we never measure an intermediate feature's response to an edit.
+- **Feature → feature edges are tested only for single edits on the development prompts.**
+  §4.11 measures downstream features' responses for the edits of §4.1, §4.9 and §4.10, with
+  20 targets per edit. Paths through several features and the trust model were not tested on
+  edges.
 - **Effects are small and early layers dominate the failures.** See §3 and §4.1: few edits
   move the output by more than 0.2 nats, and three quarters of the catastrophic misses are
   layer-0 edits. Results for large, behaviour-changing interventions are not established.
