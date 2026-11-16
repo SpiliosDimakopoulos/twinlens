@@ -485,5 +485,5 @@ def edges_figure(summary: dict, out: Path) -> None:
         fontweight="bold",
         color=INK,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
     _save(fig, out, "F9_edges")

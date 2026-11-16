@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Cross-layer transcoders (report §4.10): parity with circuit-tracer's graph (r > 0.9999999), 17,466 edits with the 426K Gemma-2-2B CLT, ρ 0.27 → 0.40 with the fix.
+- Feature → feature edges (report §4.11, figure F9): 750k (edit, target) pairs on three models; the fix raises ρ from 0.45 to 0.68 (GPT-2), 0.49 to 0.57 (Gemma PLT) and 0.61 to 0.65 (Gemma CLT).
+- External held-out prompt sets and a contrast target (DECISIONS.md D9; results pending).
+
 ## 1.2.0 (2026-11-13)
 
 - Gemma-2-2B replication with Gemma Scope transcoders (report §4.9): 17,472 edits on all 26 layers, ρ 0.21 → 0.36, and the fix beats attribution patching on Gemma (Δρ +0.05 [0.03, 0.08]).

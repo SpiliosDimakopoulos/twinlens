@@ -52,6 +52,9 @@ analyze:         ## every number in the report, from the committed sweep data
 	$(if $(wildcard experiments/results/fidelity_atp.parquet),$(PY) experiments/analyze_atp.py,@echo "analyze_atp.py skipped: run experiments/atp_baseline.py first")
 	$(if $(wildcard experiments/results/fidelity_atp_gemma2.parquet),$(PY) experiments/analyze_atp.py --model gemma2,@echo "gemma2 AtP skipped: no fidelity_atp_gemma2.parquet")
 
+analyze-edges:   ## §4.11 feature -> feature edges (bootstrap over ~750k pairs: run on a server)
+	for t in gpt2 gemma2 gemma2_clt; do $(PY) experiments/analyze_edges.py --tag $$t --workers $$(nproc); done
+
 bench:
 	$(PY) bench/latency.py
 
