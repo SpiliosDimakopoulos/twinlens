@@ -408,3 +408,15 @@ must match the TwinLens `linear` level on the same features at r > 0.99. If they
 does not run until the difference is explained.
 
 **Deviations** are written here, dated, before the analysis is run.
+
+**Deviation, 2026-11-24 (before any D10 number).** The attribution-patching gradient of
+`experiments/atp_baseline.py` was wrong: it detached every layer's MLP output, which cuts every
+path from a layer through later MLPs. At layer 0 on an IOI prompt its gradient has cosine −0.02
+with the real one. Found while testing `circuits_sweep.atp_grads`, which copied the pattern.
+Both now add a zero leaf instead (`tests/test_atp.py`, `tests/test_ct.py`). Consequences:
+- every attribution-patching number of the report (§4.8, §4.9, §4.10, §4.12, the abstract) is
+  recomputed with the fixed gradient before it is used again, for GPT-2 locally and for Gemma
+  PLT and CLT in the phase-2 server session;
+- in D10-C, "nothing detached" is the recomputed value, not "the existing value";
+- the comparison with attribution patching posted on circuit-tracer PR #123 must be corrected
+  there once the recomputed numbers exist.
