@@ -315,4 +315,7 @@ attention patterns frozen, normalisation live) where it was recorded.
   (ρ, sign agreement, within tolerance on big edits, catastrophic) on the four models, and Fix B −
   attribution patching (same four metrics) on `gpt2`, `gemma2`, `gemma2_clt`: 28 tests, Holm at 0.05.
   A claim that does not survive is reworded in the report.
+  *Note, 2026-11-24, after the run:* "states as excluding zero" was loose. Not all 28 had been
+  stated so (e.g. Fix B − AtP within tolerance on GPT-2 was reported as indistinguishable). The
+  family was run exactly as enumerated; only the rewording rule applies to the ones that had.
 - Nothing here changes D10 (circuits, dose, AtP 2×2), which is fixed separately before its runs.

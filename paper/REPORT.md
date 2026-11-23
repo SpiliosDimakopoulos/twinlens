@@ -37,8 +37,9 @@ Five findings:
 
    The fix replicates on a second, architecturally different model, Qwen3-0.6B (§4.7): the
    paired improvement in ρ is +0.12 [0.05, 0.20] and catastrophic misses fall from 3.0% to
-   0.8%. The gain is smaller than on GPT-2, on 16 prompts, with every paired interval
-   excluding zero (uncorrected for multiple metrics). It replicates again on Gemma-2-2B with
+   0.8%. The gain is smaller than on GPT-2, on 16 prompts. After a Holm correction over the
+   28 paired tests of §4.12, the gains in ρ, within tolerance and catastrophic misses survive;
+   the gain in sign agreement does not. It replicates again on Gemma-2-2B with
    Gemma Scope transcoders (§4.9): 17,472 edits on all 26 layers, ρ 0.21 → 0.36, paired
    Δρ +0.15 [0.12, 0.18].
 4. **Failures of today's graph can be anticipated without running the real model.** A logistic
@@ -396,8 +397,9 @@ Paired improvement of Fix B over graph today (same edits, 95% cluster bootstrap 
 - **Qwen3-0.6B:** Δρ +0.12 [0.05, 0.20]; Δ sign agreement +9 pp [2, 17]; Δ within tolerance
   (big) +10 pp [3, 18]; Δ catastrophic -2.2 pp [-3.7, -0.8].
 
-All intervals exclude zero, with no correction for the four metrics and only 16 prompt
-clusters on Qwen3. The gain points the same way on every metric, but it is smaller than on
+All intervals exclude zero, but there are only 16 prompt clusters on Qwen3, and after a Holm
+correction over the 28 paired tests of §4.12 the gain in sign agreement (p = 0.01) no longer
+counts; ρ, within tolerance and catastrophic misses do. The gain points the same way on every metric, but it is smaller than on
 GPT-2. One possible reason is that this transcoder family has a larger reconstruction error,
 which no Jacobian can repair; we have not tested this.
 
@@ -461,8 +463,8 @@ model (`experiments/atp_baseline.py --model gemma2`).
 
 Paired, Fix B − graph today is Δρ +0.15 [0.12, 0.18], +10 pp [7, 14] in sign agreement and
 +11 pp [8, 14] within tolerance on big edits. Fix B − attribution patching is Δρ +0.05
-[0.03, 0.08], +8 pp [4, 11] in sign agreement and +4 pp [1, 8] within tolerance; catastrophic
-misses and mean error are indistinguishable. The gain holds in every task family: ρ rises on
+[0.03, 0.08], +8 pp [4, 11] in sign agreement and +4 pp [1, 8] within tolerance (which does not survive the Holm correction of §4.12, p = 0.02);
+catastrophic misses and mean error are indistinguishable. The gain holds in every task family: ρ rises on
 all eight, most on IOI (0.12 → 0.34), syntax (0.19 → 0.38) and narrative (0.28 → 0.45), least
 on code (0.31 → 0.38).
 
@@ -504,7 +506,9 @@ reported as a second ground truth.
 
 Paired, Fix B − graph today is Δρ +0.13 [0.10, 0.16], +4 pp [1, 8] in sign agreement and
 +6 pp [1, 11] within tolerance on big edits (n = 1,198); it also has fewer catastrophic misses
-(−0.2 pp [−0.3, −0.1]). The pre-registered gate came out **A**: the interval of Δρ is above
+(−0.2 pp [−0.3, −0.1]). After the Holm correction of §4.12 only the gains in ρ and in
+catastrophic misses survive; those in sign agreement (p = 0.04) and within tolerance (p = 0.01)
+do not. The pre-registered gate came out **A**: the interval of Δρ is above
 zero, and the CLT graph without the fix ranks effects worse than the per-layer graph with it
 (ρ(CLT linear) − ρ(PLT Fix B) = −0.09 [−0.12, −0.05] on the same prompts). Cross-layer
 transcoders do help on their own: the plain CLT graph has ρ 0.27 against 0.21 for the per-layer
@@ -570,6 +574,78 @@ of attention, which this ground truth removes by construction. So for the questi
 circuit-tracer's intervention asks, the edges of today's CLT graph are already about as good
 as the fix makes them; read as statements about the model with live attention, they miss part
 of the effect.
+
+### 4.12 Re-analysis: what the existing sweeps say about use
+
+No new runs. This section re-reads the sweeps of §4.1–4.11 with questions fixed before any number
+was computed (DECISIONS.md D10-0, `experiments/analyze_reanalysis.py`, block `reanalysis` of
+`summary.json`; 95% cluster bootstraps over prompts).
+
+**Disagreement as a warning light.** Even where Fix B does not beat attribution patching, the gap
+between today's graph and Fix B tells a user *which* of today's predictions to distrust. On big
+edits, |graph − Fix B| separates the graph's misses from its hits better than the size of the
+graph's own prediction, the best simple signal of §4.6:
+
+| Model | AUROC, |graph − Fix B| | AUROC, |graph| | paired difference |
+|---|---|---|---|
+| GPT-2 small (PLT) | 0.95 [0.92, 0.97] | 0.87 [0.82, 0.92] | +0.08 [0.03, 0.12] |
+| Qwen3-0.6B (PLT) | 0.81 [0.72, 0.88] | 0.78 [0.69, 0.85] | +0.04 [−0.08, 0.13] |
+| Gemma-2-2B (PLT) | 0.83 [0.79, 0.88] | 0.73 [0.67, 0.80] | +0.10 [0.03, 0.18] |
+| Gemma-2-2B (CLT 426K) | 0.80 [0.77, 0.83] | 0.72 [0.68, 0.76] | +0.08 [0.03, 0.13] |
+
+By the pre-registered reading (AUROC ≥ 0.80 and a paired interval above zero) this is a use on
+GPT-2, Gemma PLT and, only just, the CLT; not on Qwen3.
+
+**Normalisation alone, against circuit-tracer's own intervention.** circuit-tracer's default
+`feature_intervention` freezes attention patterns but keeps LayerNorm live, while its graph
+freezes both. Against that intervention, keeping only the normalisation Jacobian (Fix A) helps
+on the CLT at the output, Δρ +0.07 [0.04, 0.10] (0.35 → 0.41), and on its edges, though barely,
++0.010 [0.009, 0.011] (0.665 → 0.675); Fix B helps less at the output (+0.05 [0.01, 0.08]) and
+hurts on the edges (−0.008 [−0.012, −0.004]). On per-layer transcoders Fix A also beats Fix B
+on edges against this truth (GPT-2 +0.22 vs +0.17, Gemma +0.07 vs +0.06 over the plain graph).
+
+**Where something happens.** On big edits only, which are almost all top-selected features
+(random features rarely move the output: 11 to 33 big edits per model):
+
+| Model | ρ graph | ρ Fix B | ρ AtP | within tol: graph / Fix B / AtP / "no change" | clipped mean error: graph / "no change" |
+|---|---|---|---|---|---|
+| GPT-2 | 0.24 | 0.66 | 0.50 | 54% / 80% / 77% / 75% | 0.65 / 0.13 |
+| Qwen3 | 0.62 | 0.78 | – | 52% / 62% / – / 59% | 0.47 / 0.21 |
+| Gemma PLT | 0.65 | 0.79 | 0.67 | 79% / 90% / 85% / 80% | 0.09 / 0.12 |
+| Gemma CLT | 0.53 | 0.55 | 0.58 | 68% / 75% / 82% / 68% | 0.17 / 0.14 |
+
+On the CLT, today's graph is no closer than "no change" on big edits, and its clipped mean error
+is larger.
+
+A user typically asks which features matter most for a prompt. Per prompt, among the
+ablations, the share of the 10 features with the largest predicted effect that are among the 10
+with the largest real effect (chance 0.14 on GPT-2 and Qwen3, 0.06 on Gemma):
+
+| Model | graph | Fix B | AtP | Fix B − graph | Fix B − AtP |
+|---|---|---|---|---|---|
+| GPT-2 | 0.57 | 0.64 | 0.62 | +0.07 [0.03, 0.11] | +0.02 [−0.02, 0.05] |
+| Qwen3 | 0.40 | 0.50 | – | +0.10 [0.04, 0.18] | – |
+| Gemma PLT | 0.40 | 0.56 | 0.55 | +0.16 [0.12, 0.20] | +0.01 [−0.03, 0.05] |
+| Gemma CLT | 0.52 | 0.59 | 0.61 | +0.06 [0.02, 0.11] | −0.02 [−0.06, 0.02] |
+
+So today's graph names about half of the ten most important edited features. Fix B adds 6–16
+points, and is indistinguishable from attribution patching on every model where both exist. The
+pool is the edited features (top by direct effect plus random), not every active feature.
+
+**Depth, CLT against PLT.** Lange et al. (2026) argue that CLTs rewrite deep circuits as shallow
+ones. On Gemma-2-2B, the plain CLT graph predicts better than the plain PLT graph for edits in
+layers 0–19 (by +0.09 to +0.18 in ρ per bin, all intervals above zero), but worse in layers
+20–25 (0.42 against 0.52, −0.10 [−0.15, −0.04]); with Fix B that last gap closes (−0.03
+[−0.08, 0.02]). Our data do not show the CLT graph being less predictive in early layers.
+
+**Multiple comparisons.** The family is every paired difference behind a headline claim: Fix B −
+graph on four models and Fix B − attribution patching on three, four metrics each, 28 tests.
+18 survive a Holm correction at 0.05, including every gain in ρ over today's graph. Of the
+differences the report had called above zero, four no longer count: sign agreement on Qwen3 and
+on the CLT, within tolerance on the CLT, and within tolerance against attribution patching on
+Gemma PLT. On the CLT the surviving Fix B − attribution-patching differences favour
+attribution patching (within tolerance and catastrophic misses). §4.7, §4.9 and §4.10 are
+worded accordingly.
 
 ## 5. Limitations
 
@@ -678,6 +754,9 @@ latency figures in the README come from `make bench`.
   Interactions.* Transformer Circuits Thread.
 - Kramár, J., Lieberum, T., Shah, R., & Nanda, N. (2024). *AtP\*: An efficient and scalable
   method for localizing LLM behaviour to components.* arXiv:2403.00745.
+- Lange, G., RGRGRG, Dearstyne, K., & Maher, K. (2026). *Cross-Layer Transcoders are incentivized
+  to learn Unfaithful Circuits.* LessWrong, 2 February 2026.
+  https://www.lesswrong.com/posts/6CS2NDmoLCFcEJMor/
 - Lindsey, J., et al. (2025). *On the Biology of a Large Language Model.* Transformer Circuits
   Thread.
 - Marks, S., Rager, C., Michaud, E. J., Belinkov, Y., Bau, D., & Mueller, A. (2024). *Sparse

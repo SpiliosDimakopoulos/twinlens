@@ -21,11 +21,11 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: requirements.lock.txt
       - uses: actions/cache@v4
         with: { path: .hf_cache, key: hf-gpt2-transcoders-v1 }
-      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install -e ".[dev]"
+      - run: pip install -r requirements.lock.txt
+      - run: pip install -e . --no-deps
       - run: python experiments/atp_baseline.py
       - run: python experiments/analyze_atp.py
       - name: Sample audits
