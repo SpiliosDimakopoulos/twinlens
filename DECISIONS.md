@@ -282,3 +282,37 @@ sets, the filter and the analysis before any external number exists.
   development claim "Fix B improves ρ over the graph" replicates on a model if the interval of
   the paired Δρ on the external set is above zero. A failed replication is reported with the
   same weight. The trust model is not refitted here (task 2.6).
+
+## D10-0. Re-analysis of the existing sweeps, fixed before any number (2026-11-24)
+
+Plan v2, phase 0. No new runs: only `fidelity*.parquet`, `fidelity_atp*.parquet` and `edges_*.parquet`
+as committed. Script `experiments/analyze_reanalysis.py`, block `reanalysis` in `summary.json`, seed 0,
+1000 cluster-bootstrap resamples over prompts. Models: `gpt2`, `qwen3`, `gemma2` (PLT), `gemma2_clt`.
+Primary ground truth `real` everywhere; `real_frozen_attn` (circuit-tracer's default intervention:
+attention patterns frozen, normalisation live) where it was recorded.
+
+- **0.1 Disagreement as a flag.** On big edits (|real| > 0.05 nats), the label is "the graph
+  (`linear`) is outside tolerance". Scores: `dis_full` = |linear − linear_fulljac|, `dis_ln` =
+  |linear − linear_lnjac|, and the baseline `size` = |linear| (the graph's own prediction, AUROC 0.87
+  on GPT-2, §4.6). AUROC of each, and the paired AUROC(dis_full) − AUROC(size).
+  Reading: unfreezing has a use as a *diagnostic* on a model if AUROC(dis_full) ≥ 0.80 **and** the
+  paired interval over `size` lies above zero. The decisive model is `gemma2_clt`.
+- **0.2 Normalisation alone against circuit-tracer's intervention.** Paired Δρ of `linear_lnjac` −
+  `linear`, `linear_fulljac` − `linear` and `linear_lnjac` − `linear_fulljac`, against
+  `real_frozen_attn`: at the output on `gemma2_clt` (the only output sweep that recorded it), and on
+  the edges of all three edge sweeps. Reading: a `freeze_layernorm`-only change is supported if the
+  interval of `linear_lnjac` − `linear` lies above zero at the output and on the edges of `gemma2_clt`.
+- **0.3 Where something happens.** Per model and level (`linear`, `linear_lnjac`, `linear_fulljac`,
+  `atp` where present, and `zero` = predict no change): ρ, sign agreement, within tolerance and clipped
+  mean error on big edits, split by edit selection (top / random). And **top-10 recall**: per prompt,
+  on ablations only, the share of the 10 edits with the largest |prediction| that are among the 10 with
+  the largest |real| effect, averaged over prompts; chance = 10 / (ablations in the prompt).
+- **0.4 Depth, CLT against PLT** (Lange et al., 2026, argue that CLTs rewrite deep circuits as shallow
+  ones). On Gemma-2-2B, same prompts: ρ of `linear` and `linear_fulljac` per edited-layer bin
+  (0–5, 6–12, 13–19, 20–25), with the joint-bootstrap CLT − PLT difference per bin. Descriptive.
+- **0.5 Multiple comparisons.** Bootstrap two-sided p-value p = min(1, 2·min(P*(Δ ≤ 0), P*(Δ ≥ 0)))
+  (resolution 0.002) for every paired difference the report states as excluding zero: Fix B − graph
+  (ρ, sign agreement, within tolerance on big edits, catastrophic) on the four models, and Fix B −
+  attribution patching (same four metrics) on `gpt2`, `gemma2`, `gemma2_clt`: 28 tests, Holm at 0.05.
+  A claim that does not survive is reworded in the report.
+- Nothing here changes D10 (circuits, dose, AtP 2×2), which is fixed separately before its runs.
