@@ -319,3 +319,92 @@ attention patterns frozen, normalisation live) where it was recorded.
   stated so (e.g. Fix B − AtP within tolerance on GPT-2 was reported as indistinguishable). The
   family was run exactly as enumerated; only the rewording rule applies to the ones that had.
 - Nothing here changes D10 (circuits, dose, AtP 2×2), which is fixed separately before its runs.
+
+## D10. Pruned circuits, dose and frozen-gradient AtP, fixed before any number (2026-11-24)
+
+Plan v2, phases 1–2. This answers the question left open on circuit-tracer PR #123: are circuits
+pruned from graphs that keep the LayerNorm and attention Jacobians more faithful? Every graph and
+intervention below goes through circuit-tracer itself. The branch is the PR's
+`gradient-flow-options`, rebased onto upstream `82996f1`, with the commit recorded in the results.
+The TwinLens engine is used only for the cross-check and for D10-C.
+
+**Shared setup**
+- Models: Gemma-2-2B with the 426K CLT (`mntss/clt-gemma-2-2b-426k`), which is primary, and with
+  the Gemma Scope PLTs (circuit-tracer's `gemma` set).
+- Prompts: the first 20 per family of the Gemma external sets of D9 (`ioi`, `sva`, `factual`),
+  60 in total.
+- Target: `attribution_targets=[answer token]`, so each graph attributes the quantity that is
+  measured.
+- Metric m: the demeaned answer logit (circuit-tracer's logit target). The secondary metric is
+  logit(answer) − logit(contrast).
+- Three graph variants per prompt, with otherwise identical arguments:
+  - G1: today's graph (both frozen);
+  - G2: `freeze_layernorm=False`;
+  - G3: both `False`.
+- Node budget: `max_feature_nodes=None` if the pilot shows that a G3 graph takes ≤ 30 min on the
+  pilot server. Otherwise the pilot sets one value M ≥ 2000 for every variant.
+- Candidate set C: the union of the feature nodes of G1–G3. A feature missing from a variant's
+  graph gets influence 0 in that variant (this matters only when M is set).
+- Ground truths, both in circuit-tracer's `feature_intervention` with no `constrained_layers`:
+  - T1 (primary): `freeze_attention=False`;
+  - T2: the default `freeze_attention=True`.
+  Following the code, both keep LayerNorm live, and transcoders are recomputed downstream.
+- Bootstrap: 95% intervals over prompts, seed 0, 1000 resamples.
+
+**D10-A, circuits**
+- Rankings of C:
+  - R1, R2, R3: node influence (`compute_node_influence`, as `prune_graph` uses it) in G1, G2, G3;
+  - R4: |attribution patching| on the real model (TwinLens `atp_baseline`, CLT summed over output
+    layers);
+  - R5: |activation × direct edge to the target| in G1;
+  - R6: random, averaged over 5 seeds.
+- Sizes: K ∈ {10, 30, 100, 300, 1000}, capped at |C|, plus the node set of the default
+  `prune_graph(G, 0.8, 0.98)` of each variant.
+- Interventions:
+  - keep(K) sets every feature in C outside the top K to 0;
+  - remove(K) sets the top K to 0.
+  - Error nodes and embeddings are untouched.
+- F_keep(K) = (m(keep K) − m(keep 0)) / (m(all) − m(keep 0)).
+- F_remove(K) = (m(all) − m(remove K)) / (m(all) − m(keep 0)).
+- A prompt with |m(all) − m(keep 0)| < 0.5 is excluded, and the count is reported.
+- Score: the area under F over log10 K on the grid (trapezoid, normalised to [0, 1]).
+- **Primary:** the paired Δ of the keep-area, R3 − R1, CLT, T1.
+  - **positive:** lower bound > 0 and mean ≥ 0.03;
+  - **negative:** upper bound < 0;
+  - **null:** anything else.
+- **Secondary:**
+  - R2 − R1 under T2;
+  - R3 − R4 and R3 − R5;
+  - remove-area for the same pairs;
+  - the same comparisons on the PLT;
+  - nodes and edges kept by the default pruning of G1–G3.
+- **PR #123:** positive → comment with the numbers. Null or negative → comment saying so and
+  suggest closing.
+
+**D10-B, dose**
+- Edits: per prompt, the top 10 of R1 and 10 drawn at random from C (seeded).
+- Each feature is set one at a time to s × its clean activation, s ∈ {−2, 0, 2, 5, 10}.
+- Predictions:
+  - Δa × the signed total effect of the feature on the target in each variant, from the
+    graph's adjacency with per-unit edge weights (A_ts / a_s), through features only, with error
+    nodes fixed;
+  - Δa × attribution patching.
+- Truth: T1, and T2 as secondary.
+- Per s: ρ, sign agreement and within tolerance on |real| > 0.05, and the departure from the
+  linear extrapolation of the true effect at s = 0 and s = 2.
+- Descriptive, with no gate.
+
+**D10-C, AtP with frozen gradients**
+- Edits: the existing 56-prompt edits.
+- AtP four ways: nothing detached (the existing value), LayerNorm scale detached, attention
+  pattern detached, and both.
+- Models: GPT-2 and Gemma-2-2B, with PLT and CLT features.
+- Paired Δρ against the existing `real` truth.
+- Reading: if "both detached" falls inside the interval of today's graph, the frozen-derivative
+  effect holds without any transcoder.
+
+**Cross-check (before the sweep):** on 3 prompts, the signed total effects from the G1 adjacency
+must match the TwinLens `linear` level on the same features at r > 0.99. If they do not, the sweep
+does not run until the difference is explained.
+
+**Deviations** are written here, dated, before the analysis is run.
