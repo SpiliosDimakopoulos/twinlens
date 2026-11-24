@@ -282,3 +282,157 @@ sets, the filter and the analysis before any external number exists.
   development claim "Fix B improves ρ over the graph" replicates on a model if the interval of
   the paired Δρ on the external set is above zero. A failed replication is reported with the
   same weight. The trust model is not refitted here (task 2.6).
+
+## D10-0. Re-analysis of the existing sweeps, fixed before any number (2026-11-24)
+
+Plan v2, phase 0. No new runs: only `fidelity*.parquet`, `fidelity_atp*.parquet` and `edges_*.parquet`
+as committed. Script `experiments/analyze_reanalysis.py`, block `reanalysis` in `summary.json`, seed 0,
+1000 cluster-bootstrap resamples over prompts. Models: `gpt2`, `qwen3`, `gemma2` (PLT), `gemma2_clt`.
+Primary ground truth `real` everywhere; `real_frozen_attn` (circuit-tracer's default intervention:
+attention patterns frozen, normalisation live) where it was recorded.
+
+- **0.1 Disagreement as a flag.** On big edits (|real| > 0.05 nats), the label is "the graph
+  (`linear`) is outside tolerance". Scores: `dis_full` = |linear − linear_fulljac|, `dis_ln` =
+  |linear − linear_lnjac|, and the baseline `size` = |linear| (the graph's own prediction, AUROC 0.87
+  on GPT-2, §4.6). AUROC of each, and the paired AUROC(dis_full) − AUROC(size).
+  Reading: unfreezing has a use as a *diagnostic* on a model if AUROC(dis_full) ≥ 0.80 **and** the
+  paired interval over `size` lies above zero. The decisive model is `gemma2_clt`.
+- **0.2 Normalisation alone against circuit-tracer's intervention.** Paired Δρ of `linear_lnjac` −
+  `linear`, `linear_fulljac` − `linear` and `linear_lnjac` − `linear_fulljac`, against
+  `real_frozen_attn`: at the output on `gemma2_clt` (the only output sweep that recorded it), and on
+  the edges of all three edge sweeps. Reading: a `freeze_layernorm`-only change is supported if the
+  interval of `linear_lnjac` − `linear` lies above zero at the output and on the edges of `gemma2_clt`.
+- **0.3 Where something happens.** Per model and level (`linear`, `linear_lnjac`, `linear_fulljac`,
+  `atp` where present, and `zero` = predict no change): ρ, sign agreement, within tolerance and clipped
+  mean error on big edits, split by edit selection (top / random). And **top-10 recall**: per prompt,
+  on ablations only, the share of the 10 edits with the largest |prediction| that are among the 10 with
+  the largest |real| effect, averaged over prompts; chance = 10 / (ablations in the prompt).
+- **0.4 Depth, CLT against PLT** (Lange et al., 2026, argue that CLTs rewrite deep circuits as shallow
+  ones). On Gemma-2-2B, same prompts: ρ of `linear` and `linear_fulljac` per edited-layer bin
+  (0–5, 6–12, 13–19, 20–25), with the joint-bootstrap CLT − PLT difference per bin. Descriptive.
+- **0.5 Multiple comparisons.** Bootstrap two-sided p-value p = min(1, 2·min(P*(Δ ≤ 0), P*(Δ ≥ 0)))
+  (resolution 0.002) for every paired difference the report states as excluding zero: Fix B − graph
+  (ρ, sign agreement, within tolerance on big edits, catastrophic) on the four models, and Fix B −
+  attribution patching (same four metrics) on `gpt2`, `gemma2`, `gemma2_clt`: 28 tests, Holm at 0.05.
+  A claim that does not survive is reworded in the report.
+  *Note, 2026-11-24, after the run:* "states as excluding zero" was loose. Not all 28 had been
+  stated so (e.g. Fix B − AtP within tolerance on GPT-2 was reported as indistinguishable). The
+  family was run exactly as enumerated; only the rewording rule applies to the ones that had.
+- Nothing here changes D10 (circuits, dose, AtP 2×2), which is fixed separately before its runs.
+
+## D10. Pruned circuits, dose and frozen-gradient AtP, fixed before any number (2026-11-24)
+
+Plan v2, phases 1–2. This answers the question left open on circuit-tracer PR #123: are circuits
+pruned from graphs that keep the LayerNorm and attention Jacobians more faithful? Every graph and
+intervention below goes through circuit-tracer itself. The branch is the PR's
+`gradient-flow-options`, rebased onto upstream `82996f1`, with the commit recorded in the results.
+The TwinLens engine is used only for the cross-check and for D10-C.
+
+**Shared setup**
+- Models: Gemma-2-2B with the 426K CLT (`mntss/clt-gemma-2-2b-426k`), which is primary, and with
+  the Gemma Scope PLTs (circuit-tracer's `gemma` set).
+- Prompts: the first 20 per family of the Gemma external sets of D9 (`ioi`, `sva`, `factual`),
+  60 in total.
+- Target: `attribution_targets=[answer token]`, so each graph attributes the quantity that is
+  measured.
+- Metric m: the demeaned answer logit (circuit-tracer's logit target). The secondary metric is
+  logit(answer) − logit(contrast).
+- Three graph variants per prompt, with otherwise identical arguments:
+  - G1: today's graph (both frozen);
+  - G2: `freeze_layernorm=False`;
+  - G3: both `False`.
+- Node budget: `max_feature_nodes=None` if the pilot shows that a G3 graph takes ≤ 30 min on the
+  pilot server. Otherwise the pilot sets one value M ≥ 2000 for every variant.
+- Candidate set C: the union of the feature nodes of G1–G3. A feature missing from a variant's
+  graph gets influence 0 in that variant (this matters only when M is set).
+- Ground truths, both in circuit-tracer's `feature_intervention` with no `constrained_layers`:
+  - T1 (primary): `freeze_attention=False`;
+  - T2: the default `freeze_attention=True`.
+  Following the code, both keep LayerNorm live, and transcoders are recomputed downstream.
+- Bootstrap: 95% intervals over prompts, seed 0, 1000 resamples.
+
+**D10-A, circuits**
+- Rankings of C:
+  - R1, R2, R3: node influence (`compute_node_influence`, as `prune_graph` uses it) in G1, G2, G3;
+  - R4: |attribution patching| on the real model (TwinLens `atp_baseline`, CLT summed over output
+    layers);
+  - R5: |activation × direct edge to the target| in G1;
+  - R6: random, averaged over 5 seeds.
+- Sizes: K ∈ {10, 30, 100, 300, 1000}, capped at |C|, plus the node set of the default
+  `prune_graph(G, 0.8, 0.98)` of each variant.
+- Interventions:
+  - keep(K) sets every feature in C outside the top K to 0;
+  - remove(K) sets the top K to 0.
+  - Error nodes and embeddings are untouched.
+- F_keep(K) = (m(keep K) − m(keep 0)) / (m(all) − m(keep 0)).
+- F_remove(K) = (m(all) − m(remove K)) / (m(all) − m(keep 0)).
+- A prompt with |m(all) − m(keep 0)| < 0.5 is excluded, and the count is reported.
+- Score: the area under F over log10 K on the grid (trapezoid, normalised to [0, 1]).
+- **Primary:** the paired Δ of the keep-area, R3 − R1, CLT, T1.
+  - **positive:** lower bound > 0 and mean ≥ 0.03;
+  - **negative:** upper bound < 0;
+  - **null:** anything else.
+- **Secondary:**
+  - R2 − R1 under T2;
+  - R3 − R4 and R3 − R5;
+  - remove-area for the same pairs;
+  - the same comparisons on the PLT;
+  - nodes and edges kept by the default pruning of G1–G3.
+- **PR #123:** positive → comment with the numbers. Null or negative → comment saying so and
+  suggest closing.
+
+**D10-B, dose**
+- Edits: per prompt, the top 10 of R1 and 10 drawn at random from C (seeded).
+- Each feature is set one at a time to s × its clean activation, s ∈ {−2, 0, 2, 5, 10}.
+- Predictions:
+  - Δa × the signed total effect of the feature on the target in each variant, from the
+    graph's adjacency with per-unit edge weights (A_ts / a_s), through features only, with error
+    nodes fixed;
+  - Δa × attribution patching.
+- Truth: T1, and T2 as secondary.
+- Per s: ρ, sign agreement and within tolerance on |real| > 0.05, and the departure from the
+  linear extrapolation of the true effect at s = 0 and s = 2.
+- Descriptive, with no gate.
+
+**D10-C, AtP with frozen gradients**
+- Edits: the existing 56-prompt edits.
+- AtP four ways: nothing detached (the existing value), LayerNorm scale detached, attention
+  pattern detached, and both.
+- Models: GPT-2 and Gemma-2-2B, with PLT and CLT features.
+- Paired Δρ against the existing `real` truth.
+- Reading: if "both detached" falls inside the interval of today's graph, the frozen-derivative
+  effect holds without any transcoder.
+
+**Cross-check (before the sweep):** on 3 prompts, the signed total effects from the G1 adjacency
+must match the TwinLens `linear` level on the same features at r > 0.99. If they do not, the sweep
+does not run until the difference is explained.
+
+**Deviations** are written here, dated, before the analysis is run.
+
+**Deviation, 2026-11-24 (before any D10 number).** The attribution-patching gradient of
+`experiments/atp_baseline.py` was wrong: it detached every layer's MLP output, which cuts every
+path from a layer through later MLPs. At layer 0 on an IOI prompt its gradient has cosine −0.02
+with the real one. Found while testing `circuits_sweep.atp_grads`, which copied the pattern.
+Both now add a zero leaf instead (`tests/test_atp.py`, `tests/test_ct.py`). Consequences:
+- every attribution-patching number of the report (§4.8, §4.9, §4.10, §4.12, the abstract) is
+  recomputed with the fixed gradient before it is used again, for GPT-2 locally and for Gemma
+  PLT and CLT in the phase-2 server session;
+- in D10-C, "nothing detached" is the recomputed value, not "the existing value";
+- the comparison with attribution patching posted on circuit-tracer PR #123 must be corrected
+  there once the recomputed numbers exist.
+
+**Addition, 2026-11-24 (before any external number).** Attribution patching is also computed
+on the D9 external edits (`atp_baseline.py --prompts external`, GPT-2, Gemma PLT and CLT;
+nothing detached), so that "attribution patching predicts far better than the graph" is
+tested on prompts we did not write. Reading as for D9: the claim replicates on a model if the
+interval of the paired Δρ (AtP − graph today, and AtP − Fix B) on the external set lies above
+zero.
+
+**Implementation change, 2026-11-24 (before any D10 number).** Through `feature_intervention`,
+one Gemma CLT prompt took about 110 minutes: about 450 single forward passes, with the vocab
+unembedded at every position and, for T2, an extra clean pass per call. Interventions now run
+through `twinlens/ct/fast.py`, a batched engine with the same semantics: live `encode_layer`
+activations, Δ = value − live, and Δ · W_dec added at the feature-output hook. Only the last
+position is unembedded, and the T2 patterns are cached once per prompt. `tests/test_ct.py`
+checks that it equals `feature_intervention` to 1e-4 (PLT and CLT, T1 and T2). The design of
+D10 is unchanged. The one CLT prompt run with the old path is discarded unread.

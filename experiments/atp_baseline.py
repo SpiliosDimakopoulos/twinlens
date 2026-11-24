@@ -23,24 +23,36 @@ from common import EDIT_KEY, RESULTS, write_parquet
 
 from twinlens.core.gpt2 import GPT2
 
+DETACH = {  # D10-C: hook-name suffixes whose gradient is cut (forward values unchanged)
+    "none": (),
+    "ln": (".hook_scale",),
+    "attn": ("attn.hook_pattern",),
+    "both": (".hook_scale", "attn.hook_pattern"),
+}
+
 
 def mlp_out_grads(
-    model: GPT2, text: str, hook: str = "hook_mlp_out"
+    model: GPT2, text: str, hook: str = "hook_mlp_out", detach: tuple[str, ...] = ()
 ) -> tuple[int, dict[int, torch.Tensor]]:
     """Clean top-1 target and ∂log p(target)/∂blocks.{l}.{hook} for every layer, [pos, d_model].
-    ``hook`` is where the transcoder's output (and so the feature edit) lives."""
+    ``hook`` is where the transcoder's output (and so the feature edit) lives. Gradients do not
+    flow through any hook point whose name ends with one of ``detach`` (as a frozen graph)."""
     toks = model.to_tokens(text)
     store: dict[int, torch.Tensor] = {}
 
     def make(layer: int):
+        # Add a zero leaf rather than detaching: a detached copy would cut every path from this
+        # layer through later MLPs, so the gradient would miss MLP-mediated effects (the bug of
+        # the first version of this script, fixed 2026-11-24).
         def fn(x: torch.Tensor, _: str) -> torch.Tensor:
-            x = x.detach().requires_grad_(True)
-            store[layer] = x
-            return x
+            leaf = torch.zeros_like(x, requires_grad=True)
+            store[layer] = leaf
+            return x + leaf
 
         return fn
 
     hooks = [(f"blocks.{l}.{hook}", make(l)) for l in range(model.cfg.n_layers)]
+    hooks += [(n, lambda x, _: x.detach()) for n in model.hook_names() if n.endswith(detach)]
     with torch.enable_grad(), model.hooks(hooks):
         logits = model(toks)[0, -1]
         target = int(logits.argmax())
@@ -55,12 +67,25 @@ def main() -> None:
     ap.add_argument("--tc-out", default="hook_mlp_out", help="gemma2: transcoder output hook")
     ap.add_argument("--transcoders", choices=["plt", "clt426k"], default="plt")
     ap.add_argument("--small", action="store_true", help="the --small sweep's edits")
+    ap.add_argument(
+        "--prompts",
+        choices=["dev", "external"],
+        default="dev",
+        help="the sweep's edits on the development or the external (D9) prompts",
+    )
+    ap.add_argument(
+        "--detach",
+        choices=list(DETACH),
+        default="none",
+        help="D10-C: cut the gradient through LN scales and/or attention patterns",
+    )
     args = ap.parse_args()
     tag = "" if args.model == "gpt2" else f"_{args.model}"
     if args.transcoders == "clt426k":
         tag += "_clt"
     small = "_small" if args.small else ""
-    df = pd.read_parquet(RESULTS / f"fidelity{small}{tag}.parquet")
+    ext = "_ext" if args.prompts == "external" else ""
+    df = pd.read_parquet(RESULTS / f"fidelity{small}{tag}{ext}.parquet")
     if args.model == "gpt2":
         from twinlens.twin.transcoders import TranscoderSet
 
@@ -76,7 +101,7 @@ def main() -> None:
             tcs = GemmaScopeTranscoderSet(range(26), in_hook=args.tc_in, out_hook=args.tc_out)
     out = pd.Series(index=df.index, dtype=float)
     for pid, g in df.groupby("prompt_id"):
-        target, grads = mlp_out_grads(model, g.prompt.iloc[0], hook)
+        target, grads = mlp_out_grads(model, g.prompt.iloc[0], hook, DETACH[args.detach])
         for i, r in g.iterrows():
             l, p, f = int(r.layer), int(r.pos), int(r.feature)
             rows = tcs[l].dec_rows([f])[0].float()
@@ -87,7 +112,8 @@ def main() -> None:
                 out[i] = float(r.delta_act * (g_out * rows).sum())
         print(f"prompt {pid}: {len(g)} edits, target id {target}", flush=True)
     res = df[list(EDIT_KEY)].assign(atp_dlogp=out)
-    path = RESULTS / f"fidelity_atp{small}{tag}.parquet"
+    det = "" if args.detach == "none" else f"_detach-{args.detach}"
+    path = RESULTS / f"fidelity_atp{small}{tag}{ext}{det}.parquet"
     write_parquet(res, path)
     print(f"wrote {len(res)} rows -> {path}")
 

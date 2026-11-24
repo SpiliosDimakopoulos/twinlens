@@ -153,7 +153,49 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--top", type=int, default=8, help="number of edges to audit (default 8)")
     a.add_argument("--edit", choices=sorted(EDITS), default="ablate")
     a.add_argument("--json", action="store_true", help="print the report as JSON")
+    g = sub.add_parser(
+        "audit-graph",
+        help="audit a circuit-tracer attribution graph against attribution patching and real "
+        "ablations (any model circuit-tracer supports; needs `pip install twinlens[ct]`)",
+    )
+    g.add_argument("prompt")
+    g.add_argument("--model", default="google/gemma-2-2b", help="TransformerLens model name")
+    g.add_argument(
+        "--transcoders",
+        default="mntss/clt-gemma-2-2b-426k",
+        help="circuit-tracer transcoder set (a name like 'gemma' or a HF repo)",
+    )
+    g.add_argument(
+        "--hf-model",
+        default=None,
+        help="load the weights from this HF repo (e.g. an ungated mirror)",
+    )
+    g.add_argument("--check", type=int, default=20, help="nodes per ranking to ablate for real")
+    g.add_argument("--max-feature-nodes", type=int, default=None)
+    g.add_argument(
+        "--frozen-attention",
+        action="store_true",
+        help="check against circuit-tracer's default frozen-attention intervention",
+    )
+    g.add_argument("--json", action="store_true", help="print the report as JSON")
     args = ap.parse_args(argv)
+    if args.cmd == "audit-graph":
+        from twinlens.ct.audit import audit_graph, load, to_markdown
+
+        print(f"loading {args.model} with {args.transcoders}...", file=sys.stderr)
+        model = load(args.model, args.transcoders, args.hf_model)
+        from circuit_tracer import attribute
+
+        graph = attribute(
+            args.prompt,
+            model,
+            max_n_logits=1,
+            desired_logit_prob=0.0,
+            max_feature_nodes=args.max_feature_nodes,
+        )
+        r = audit_graph(model, graph, n_check=args.check, freeze_attention=args.frozen_attention)
+        print(json.dumps(r, indent=2) if args.json else to_markdown(r))
+        return 0
     if not 1 <= args.top <= 64:
         ap.error("--top must be between 1 and 64")
     if args.edit == "halve":

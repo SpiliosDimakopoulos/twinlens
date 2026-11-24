@@ -22,11 +22,11 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: requirements.lock.txt
       - uses: actions/cache@v4
         with: { path: .hf_cache, key: hf-gpt2-transcoders-v1 }
-      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install -e ".[dev]"
+      - run: pip install -r requirements.lock.txt
+      - run: pip install -e . --no-deps
       - run: ruff check twinlens server tests experiments
       - run: pytest -q --timeout=900
   web:
@@ -89,7 +89,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: requirements.lock.txt
       - uses: actions/cache@v4
         with: { path: .hf_cache, key: hf-gpt2-transcoders-v1 }
       - uses: actions/setup-node@v4
