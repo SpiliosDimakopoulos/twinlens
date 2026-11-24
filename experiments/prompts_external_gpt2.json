@@ -5,7 +5,7 @@
  "families": {
   "ioi": {
    "n_candidates": 1000,
-   "n_tested": 65,
+   "n_tested": 108,
    "prompts": [
     {
      "prompt": "Before Ryan and Luke left the racetrack, Ryan decided to give a gold watch to",
@@ -486,6 +486,326 @@
      "source": "mib-bench/ioi@e5f3468 test",
      "answer_id": 6542,
      "contrast_id": 3905
+    },
+    {
+     "prompt": "Then, Robert and Lewis went to the harbor. Robert gave a bicycle to",
+     "answer": " Lewis",
+     "contrast": " Robert",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 10174,
+     "contrast_id": 5199
+    },
+    {
+     "prompt": "When Dan and Elizabeth were about to leave the resort, Dan gave a wrench to",
+     "answer": " Elizabeth",
+     "contrast": " Dan",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 10674,
+     "contrast_id": 6035
+    },
+    {
+     "prompt": "When Tim and Edward were about to leave the circus, Tim gave a pair of pliers to",
+     "answer": " Edward",
+     "contrast": " Tim",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 10443,
+     "contrast_id": 5045
+    },
+    {
+     "prompt": "The square Summer and Alex went to had a shoe. Summer gave it to",
+     "answer": " Alex",
+     "contrast": " Summer",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 4422,
+     "contrast_id": 10216
+    },
+    {
+     "prompt": "Then, Daniel and Scott went to the circus. Daniel gave a needle to",
+     "answer": " Scott",
+     "contrast": " Daniel",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 4746,
+     "contrast_id": 7806
+    },
+    {
+     "prompt": "When Steven and Roy got a notebook at the harbor, Steven decided to give it to",
+     "answer": " Roy",
+     "contrast": " Steven",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 9817,
+     "contrast_id": 8239
+    },
+    {
+     "prompt": "The market Daniel and Kelly went to had a carpet. Daniel gave it to",
+     "answer": " Kelly",
+     "contrast": " Daniel",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 9077,
+     "contrast_id": 7806
+    },
+    {
+     "prompt": "Before Guy and Luke left the university campus, Guy decided to give a pair of shoes to",
+     "answer": " Luke",
+     "contrast": " Guy",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 11336,
+     "contrast_id": 13145
+    },
+    {
+     "prompt": "Then, Kelly and Dan were working at the airport. Kelly decided to give a jar to",
+     "answer": " Dan",
+     "contrast": " Kelly",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 6035,
+     "contrast_id": 9077
+    },
+    {
+     "prompt": "Before Edward and Dan left the restaurant, Edward decided to give a pencil to",
+     "answer": " Dan",
+     "contrast": " Edward",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 6035,
+     "contrast_id": 10443
+    },
+    {
+     "prompt": "When Phil and Kelly were about to leave the zoo, Phil gave a pin to",
+     "answer": " Kelly",
+     "contrast": " Phil",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 9077,
+     "contrast_id": 4543
+    },
+    {
+     "prompt": "Before Rob and Ross left the harbor, Rob decided to give a pillow to",
+     "answer": " Ross",
+     "contrast": " Rob",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 9847,
+     "contrast_id": 3851
+    },
+    {
+     "prompt": "While Rick and Kelly relaxed, Rick gave a pencil sharpener to",
+     "answer": " Kelly",
+     "contrast": " Rick",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 9077,
+     "contrast_id": 8759
+    },
+    {
+     "prompt": "While Josh and Edward relaxed, Josh gave a cable to",
+     "answer": " Edward",
+     "contrast": " Josh",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 10443,
+     "contrast_id": 8518
+    },
+    {
+     "prompt": "Then, Kelly and William went to the mall. Kelly gave a boot to",
+     "answer": " William",
+     "contrast": " Kelly",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 3977,
+     "contrast_id": 9077
+    },
+    {
+     "prompt": "When Guy and William were about to leave the optician, Guy gave a pair of pliers to",
+     "answer": " William",
+     "contrast": " Guy",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 3977,
+     "contrast_id": 13145
+    },
+    {
+     "prompt": "Then, Angel and Tom had a lot of fun at the stadium. Angel gave a fork to",
+     "answer": " Tom",
+     "contrast": " Angel",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 4186,
+     "contrast_id": 3905
+    },
+    {
+     "prompt": "While Summer and Scott relaxed, Summer gave a trunk to",
+     "answer": " Scott",
+     "contrast": " Summer",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 4746,
+     "contrast_id": 10216
+    },
+    {
+     "prompt": "The garden Kelly and Sarah went to had a gold watch. Kelly gave it to",
+     "answer": " Sarah",
+     "contrast": " Kelly",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 10490,
+     "contrast_id": 9077
+    },
+    {
+     "prompt": "When Roger and Cal were about to leave the resort, Roger gave a shelf to",
+     "answer": " Cal",
+     "contrast": " Roger",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 2199,
+     "contrast_id": 13637
+    },
+    {
+     "prompt": "Once Tom and Henry arrived at the department store, Tom gave a microphone to",
+     "answer": " Henry",
+     "contrast": " Tom",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 8616,
+     "contrast_id": 4186
+    },
+    {
+     "prompt": "Then, Daniel and Tim had a lot of fun at the restaurant. Daniel gave a scarf to",
+     "answer": " Tim",
+     "contrast": " Daniel",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 5045,
+     "contrast_id": 7806
+    },
+    {
+     "prompt": "The stadium Mike and Tom went to had a fan. Mike gave it to",
+     "answer": " Tom",
+     "contrast": " Mike",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 4186,
+     "contrast_id": 4995
+    },
+    {
+     "prompt": "Once Steve and Lewis arrived at the optician, Steve gave a shoe to",
+     "answer": " Lewis",
+     "contrast": " Steve",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 10174,
+     "contrast_id": 6542
+    },
+    {
+     "prompt": "Then, Henry and Robert had a lot of fun at the hotel. Henry gave a pair of shoes to",
+     "answer": " Robert",
+     "contrast": " Henry",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 5199,
+     "contrast_id": 8616
+    },
+    {
+     "prompt": "The court Rob and Sarah went to had a needle. Rob gave it to",
+     "answer": " Sarah",
+     "contrast": " Rob",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 10490,
+     "contrast_id": 3851
+    },
+    {
+     "prompt": "Once Rob and Austin arrived at the dorm, Rob gave a ring to",
+     "answer": " Austin",
+     "contrast": " Rob",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 9533,
+     "contrast_id": 3851
+    },
+    {
+     "prompt": "When Will and Alex got a pillow at the museum, Will decided to give it to",
+     "answer": " Alex",
+     "contrast": " Will",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 4422,
+     "contrast_id": 2561
+    },
+    {
+     "prompt": "Once Roy and Don arrived at the square, Roy gave a mirror to",
+     "answer": " Don",
+     "contrast": " Roy",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 2094,
+     "contrast_id": 9817
+    },
+    {
+     "prompt": "The gift shop Lewis and Roger went to had a dishwasher. Lewis gave it to",
+     "answer": " Roger",
+     "contrast": " Lewis",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 13637,
+     "contrast_id": 10174
+    },
+    {
+     "prompt": "The break room Tom and Roger went to had a backpack. Tom gave it to",
+     "answer": " Roger",
+     "contrast": " Tom",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 13637,
+     "contrast_id": 4186
+    },
+    {
+     "prompt": "Then, Neil and Cal had a lot of fun at the ramp. Neil gave a backpack to",
+     "answer": " Cal",
+     "contrast": " Neil",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 2199,
+     "contrast_id": 15929
+    },
+    {
+     "prompt": "When Guy and Daniel were about to leave the spa, Guy gave a highlighter to",
+     "answer": " Daniel",
+     "contrast": " Guy",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 7806,
+     "contrast_id": 13145
+    },
+    {
+     "prompt": "When Steve and Daniel were about to leave the cafe, Steve gave a trunk to",
+     "answer": " Daniel",
+     "contrast": " Steve",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 7806,
+     "contrast_id": 6542
+    },
+    {
+     "prompt": "When Alexander and Neil got a scarf at the toy store, Alexander decided to give it to",
+     "answer": " Neil",
+     "contrast": " Alexander",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 15929,
+     "contrast_id": 10009
+    },
+    {
+     "prompt": "When Joe and Austin got a glove at the tire store, Joe decided to give it to",
+     "answer": " Austin",
+     "contrast": " Joe",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 9533,
+     "contrast_id": 5689
+    },
+    {
+     "prompt": "Before Roy and Jonathan left the hangar, Roy decided to give a bucket of paint to",
+     "answer": " Jonathan",
+     "contrast": " Roy",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 11232,
+     "contrast_id": 9817
+    },
+    {
+     "prompt": "Then, Peter and Andrew had a lot of fun at the cafeteria. Peter gave a backpack to",
+     "answer": " Andrew",
+     "contrast": " Peter",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 6858,
+     "contrast_id": 5613
+    },
+    {
+     "prompt": "While Austin and Grant relaxed, Austin gave a mirror to",
+     "answer": " Grant",
+     "contrast": " Austin",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 12181,
+     "contrast_id": 9533
+    },
+    {
+     "prompt": "When Summer and Rob were about to leave the gym, Summer gave a nail file to",
+     "answer": " Rob",
+     "contrast": " Summer",
+     "source": "mib-bench/ioi@e5f3468 test",
+     "answer_id": 3851,
+     "contrast_id": 10216
     }
    ]
   },
@@ -809,7 +1129,7 @@
   },
   "factual": {
    "n_candidates": 5100,
-   "n_tested": 647,
+   "n_tested": 1044,
    "prompts": [
     {
      "prompt": "Tim Duncan plays the sport of",
@@ -1290,12 +1610,332 @@
      "source": "evandez/relations@1b9ec3c company_hq",
      "answer_id": 6586,
      "contrast_id": 23434
+    },
+    {
+     "prompt": "Windows Server 2012 was created by",
+     "answer": " Microsoft",
+     "contrast": " Chrysler",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 5413,
+     "contrast_id": 36477
+    },
+    {
+     "prompt": "48 Persei is part of the constellation named",
+     "answer": " Perseus",
+     "contrast": " Crux",
+     "source": "evandez/relations@1b9ec3c star_constellation",
+     "answer_id": 31544,
+     "contrast_id": 6472
+    },
+    {
+     "prompt": "Brian Bosworth plays the sport of",
+     "answer": " football",
+     "contrast": " hockey",
+     "source": "evandez/relations@1b9ec3c person_plays_pro_sport",
+     "answer_id": 4346,
+     "contrast_id": 12217
+    },
+    {
+     "prompt": "Windows 2000 was created by",
+     "answer": " Microsoft",
+     "contrast": " Chevrolet",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 5413,
+     "contrast_id": 35398
+    },
+    {
+     "prompt": "Ernie Barnes plays the sport of",
+     "answer": " football",
+     "contrast": " soccer",
+     "source": "evandez/relations@1b9ec3c person_plays_pro_sport",
+     "answer_id": 4346,
+     "contrast_id": 11783
+    },
+    {
+     "prompt": "Mac OS X 10.0 was created by",
+     "answer": " Apple",
+     "contrast": " Samsung",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 4196,
+     "contrast_id": 10397
+    },
+    {
+     "prompt": "Windows 7 was created by",
+     "answer": " Microsoft",
+     "contrast": " Nissan",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 5413,
+     "contrast_id": 28190
+    },
+    {
+     "prompt": "Walter Payton plays the sport of",
+     "answer": " football",
+     "contrast": " baseball",
+     "source": "evandez/relations@1b9ec3c person_plays_pro_sport",
+     "answer_id": 4346,
+     "contrast_id": 9283
+    },
+    {
+     "prompt": "Gary Payton plays the sport of",
+     "answer": " basketball",
+     "contrast": " baseball",
+     "source": "evandez/relations@1b9ec3c person_plays_pro_sport",
+     "answer_id": 9669,
+     "contrast_id": 9283
+    },
+    {
+     "prompt": "Emscher is in the country of",
+     "answer": " Germany",
+     "contrast": " Colombia",
+     "source": "evandez/relations@1b9ec3c landmark_in_country",
+     "answer_id": 4486,
+     "contrast_id": 21291
+    },
+    {
+     "prompt": "Windows 8 was created by",
+     "answer": " Microsoft",
+     "contrast": " IBM",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 5413,
+     "contrast_id": 19764
+    },
+    {
+     "prompt": "Kevin Love plays the sport of",
+     "answer": " basketball",
+     "contrast": " football",
+     "source": "evandez/relations@1b9ec3c person_plays_pro_sport",
+     "answer_id": 9669,
+     "contrast_id": 4346
+    },
+    {
+     "prompt": "Internet Explorer 10 was created by",
+     "answer": " Microsoft",
+     "contrast": " Sears",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 5413,
+     "contrast_id": 36895
+    },
+    {
+     "prompt": "Pontigny Abbey is in the country of",
+     "answer": " France",
+     "contrast": " Haiti",
+     "source": "evandez/relations@1b9ec3c landmark_in_country",
+     "answer_id": 4881,
+     "contrast_id": 25051
+    },
+    {
+     "prompt": "MacBook Pro was created by",
+     "answer": " Apple",
+     "contrast": " Chevrolet",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 4196,
+     "contrast_id": 35398
+    },
+    {
+     "prompt": "Ericsson is headquartered in the city of",
+     "answer": " Stockholm",
+     "contrast": " Franklin",
+     "source": "evandez/relations@1b9ec3c company_hq",
+     "answer_id": 29679,
+     "contrast_id": 14021
+    },
+    {
+     "prompt": "Windows Phone 7 was created by",
+     "answer": " Microsoft",
+     "contrast": " Apple",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 5413,
+     "contrast_id": 4196
+    },
+    {
+     "prompt": "Seiyu Group is headquartered in the city of",
+     "answer": " Tokyo",
+     "contrast": " Monroe",
+     "source": "evandez/relations@1b9ec3c company_hq",
+     "answer_id": 11790,
+     "contrast_id": 26249
+    },
+    {
+     "prompt": "Mario franchise was created by",
+     "answer": " Nintendo",
+     "contrast": " Suzuki",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 9714,
+     "contrast_id": 35807
+    },
+    {
+     "prompt": "Norwegian Industrial Property Office is headquartered in the city of",
+     "answer": " Oslo",
+     "contrast": " Karachi",
+     "source": "evandez/relations@1b9ec3c company_hq",
+     "answer_id": 39636,
+     "contrast_id": 46154
+    },
+    {
+     "prompt": "Karl Malone plays the sport of",
+     "answer": " basketball",
+     "contrast": " baseball",
+     "source": "evandez/relations@1b9ec3c person_plays_pro_sport",
+     "answer_id": 9669,
+     "contrast_id": 9283
+    },
+    {
+     "prompt": "Bhinmal is in the country of",
+     "answer": " India",
+     "contrast": " Fiji",
+     "source": "evandez/relations@1b9ec3c landmark_in_country",
+     "answer_id": 3794,
+     "contrast_id": 43676
+    },
+    {
+     "prompt": "Internet Explorer 11 was created by",
+     "answer": " Microsoft",
+     "contrast": " Square",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 5413,
+     "contrast_id": 9276
+    },
+    {
+     "prompt": "Windows NT was created by",
+     "answer": " Microsoft",
+     "contrast": " Renault",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 5413,
+     "contrast_id": 44083
+    },
+    {
+     "prompt": "Pazhayangadi is in the country of",
+     "answer": " India",
+     "contrast": " Colombia",
+     "source": "evandez/relations@1b9ec3c landmark_in_country",
+     "answer_id": 3794,
+     "contrast_id": 21291
+    },
+    {
+     "prompt": "Windows Server 2008 was created by",
+     "answer": " Microsoft",
+     "contrast": " Chrysler",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 5413,
+     "contrast_id": 36477
+    },
+    {
+     "prompt": "Panagarh is in the country of",
+     "answer": " India",
+     "contrast": " Ghana",
+     "source": "evandez/relations@1b9ec3c landmark_in_country",
+     "answer_id": 3794,
+     "contrast_id": 32825
+    },
+    {
+     "prompt": "7 Piscium is part of the constellation named",
+     "answer": " Pisces",
+     "contrast": " Hercules",
+     "source": "evandez/relations@1b9ec3c star_constellation",
+     "answer_id": 42021,
+     "contrast_id": 32795
+    },
+    {
+     "prompt": "Windows Malicious Software Removal Tool was created by",
+     "answer": " Microsoft",
+     "contrast": " Fiat",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 5413,
+     "contrast_id": 23327
+    },
+    {
+     "prompt": "Wii U system software was created by",
+     "answer": " Nintendo",
+     "contrast": " Honda",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 9714,
+     "contrast_id": 20059
+    },
+    {
+     "prompt": "Android TV was created by",
+     "answer": " Google",
+     "contrast": " Fiat",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 3012,
+     "contrast_id": 23327
+    },
+    {
+     "prompt": "Geelong Ring Road is in the country of",
+     "answer": " Australia",
+     "contrast": " Bahamas",
+     "source": "evandez/relations@1b9ec3c landmark_in_country",
+     "answer_id": 4505,
+     "contrast_id": 45726
+    },
+    {
+     "prompt": "Mezhdurechensky District is in the country of",
+     "answer": " Russia",
+     "contrast": " Madagascar",
+     "source": "evandez/relations@1b9ec3c landmark_in_country",
+     "answer_id": 3284,
+     "contrast_id": 46694
+    },
+    {
+     "prompt": "Final Fantasy X was created by",
+     "answer": " Square",
+     "contrast": " Adobe",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 9276,
+     "contrast_id": 21771
+    },
+    {
+     "prompt": "Saint-Jacques-de-la-Lande is in the country of",
+     "answer": " France",
+     "contrast": " Algeria",
+     "source": "evandez/relations@1b9ec3c landmark_in_country",
+     "answer_id": 4881,
+     "contrast_id": 36498
+    },
+    {
+     "prompt": "Santo Stefano d'Aveto is in the country of",
+     "answer": " Italy",
+     "contrast": " Sudan",
+     "source": "evandez/relations@1b9ec3c landmark_in_country",
+     "answer_id": 8031,
+     "contrast_id": 19610
+    },
+    {
+     "prompt": "Terry Crews plays the sport of",
+     "answer": " football",
+     "contrast": " soccer",
+     "source": "evandez/relations@1b9ec3c person_plays_pro_sport",
+     "answer_id": 4346,
+     "contrast_id": 11783
+    },
+    {
+     "prompt": ".NET Framework was created by",
+     "answer": " Microsoft",
+     "contrast": " Nokia",
+     "source": "evandez/relations@1b9ec3c product_by_company",
+     "answer_id": 5413,
+     "contrast_id": 26182
+    },
+    {
+     "prompt": "Colin Kaepernick plays the sport of",
+     "answer": " football",
+     "contrast": " hockey",
+     "source": "evandez/relations@1b9ec3c person_plays_pro_sport",
+     "answer_id": 4346,
+     "contrast_id": 12217
+    },
+    {
+     "prompt": "JVC Kenwood Victor Entertainment is in the country of",
+     "answer": " Japan",
+     "contrast": " Argentina",
+     "source": "evandez/relations@1b9ec3c landmark_in_country",
+     "answer_id": 2869,
+     "contrast_id": 16519
     }
    ]
   },
   "greater_than": {
    "n_candidates": 679,
-   "n_tested": 60,
+   "n_tested": 100,
    "prompts": [
     {
      "prompt": "The conflict lasted from the year 1718 to the year 17",
@@ -1836,6 +2476,366 @@
      "source": "generated, template of Hanna et al. (2023)",
      "answer_id": 3695,
      "contrast_id": 4304
+    },
+    {
+     "prompt": "The drought lasted from the year 1708 to the year 17",
+     "answer": "10",
+     "contrast": "07",
+     "yy": 8,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 940,
+     "contrast_id": 2998
+    },
+    {
+     "prompt": "The war lasted from the year 1791 to the year 17",
+     "answer": "92",
+     "contrast": "90",
+     "yy": 91,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 5892,
+     "contrast_id": 3829
+    },
+    {
+     "prompt": "The expedition lasted from the year 1705 to the year 17",
+     "answer": "10",
+     "contrast": "04",
+     "yy": 5,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 940,
+     "contrast_id": 3023
+    },
+    {
+     "prompt": "The occupation lasted from the year 1726 to the year 17",
+     "answer": "28",
+     "contrast": "25",
+     "yy": 26,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 2078,
+     "contrast_id": 1495
+    },
+    {
+     "prompt": "The occupation lasted from the year 1760 to the year 17",
+     "answer": "70",
+     "contrast": "59",
+     "yy": 60,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 2154,
+     "contrast_id": 3270
+    },
+    {
+     "prompt": "The reign lasted from the year 1705 to the year 17",
+     "answer": "10",
+     "contrast": "04",
+     "yy": 5,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 940,
+     "contrast_id": 3023
+    },
+    {
+     "prompt": "The reign lasted from the year 1707 to the year 17",
+     "answer": "10",
+     "contrast": "06",
+     "yy": 7,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 940,
+     "contrast_id": 3312
+    },
+    {
+     "prompt": "The expedition lasted from the year 1747 to the year 17",
+     "answer": "50",
+     "contrast": "46",
+     "yy": 47,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1120,
+     "contrast_id": 3510
+    },
+    {
+     "prompt": "The expedition lasted from the year 1746 to the year 17",
+     "answer": "49",
+     "contrast": "45",
+     "yy": 46,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 2920,
+     "contrast_id": 2231
+    },
+    {
+     "prompt": "The conflict lasted from the year 1762 to the year 17",
+     "answer": "65",
+     "contrast": "61",
+     "yy": 62,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 2996,
+     "contrast_id": 5333
+    },
+    {
+     "prompt": "The drought lasted from the year 1782 to the year 17",
+     "answer": "90",
+     "contrast": "81",
+     "yy": 82,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 3829,
+     "contrast_id": 6659
+    },
+    {
+     "prompt": "The reign lasted from the year 1731 to the year 17",
+     "answer": "33",
+     "contrast": "30",
+     "yy": 31,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 2091,
+     "contrast_id": 1270
+    },
+    {
+     "prompt": "The war lasted from the year 1751 to the year 17",
+     "answer": "52",
+     "contrast": "50",
+     "yy": 51,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 4309,
+     "contrast_id": 1120
+    },
+    {
+     "prompt": "The dynasty lasted from the year 1732 to the year 17",
+     "answer": "49",
+     "contrast": "31",
+     "yy": 32,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 2920,
+     "contrast_id": 3132
+    },
+    {
+     "prompt": "The reign lasted from the year 1725 to the year 17",
+     "answer": "50",
+     "contrast": "24",
+     "yy": 25,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1120,
+     "contrast_id": 1731
+    },
+    {
+     "prompt": "The expedition lasted from the year 1754 to the year 17",
+     "answer": "60",
+     "contrast": "53",
+     "yy": 54,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1899,
+     "contrast_id": 4310
+    },
+    {
+     "prompt": "The war lasted from the year 1734 to the year 17",
+     "answer": "45",
+     "contrast": "33",
+     "yy": 34,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 2231,
+     "contrast_id": 2091
+    },
+    {
+     "prompt": "The drought lasted from the year 1765 to the year 17",
+     "answer": "70",
+     "contrast": "64",
+     "yy": 65,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 2154,
+     "contrast_id": 2414
+    },
+    {
+     "prompt": "The reign lasted from the year 1730 to the year 17",
+     "answer": "40",
+     "contrast": "29",
+     "yy": 30,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1821,
+     "contrast_id": 1959
+    },
+    {
+     "prompt": "The reign lasted from the year 1740 to the year 17",
+     "answer": "50",
+     "contrast": "39",
+     "yy": 40,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1120,
+     "contrast_id": 2670
+    },
+    {
+     "prompt": "The dynasty lasted from the year 1704 to the year 17",
+     "answer": "12",
+     "contrast": "03",
+     "yy": 4,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1065,
+     "contrast_id": 3070
+    },
+    {
+     "prompt": "The drought lasted from the year 1744 to the year 17",
+     "answer": "50",
+     "contrast": "43",
+     "yy": 44,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1120,
+     "contrast_id": 3559
+    },
+    {
+     "prompt": "The war lasted from the year 1722 to the year 17",
+     "answer": "25",
+     "contrast": "21",
+     "yy": 22,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1495,
+     "contrast_id": 2481
+    },
+    {
+     "prompt": "The expedition lasted from the year 1791 to the year 17",
+     "answer": "92",
+     "contrast": "90",
+     "yy": 91,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 5892,
+     "contrast_id": 3829
+    },
+    {
+     "prompt": "The conflict lasted from the year 1715 to the year 17",
+     "answer": "20",
+     "contrast": "14",
+     "yy": 15,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1238,
+     "contrast_id": 1415
+    },
+    {
+     "prompt": "The war lasted from the year 1726 to the year 17",
+     "answer": "28",
+     "contrast": "25",
+     "yy": 26,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 2078,
+     "contrast_id": 1495
+    },
+    {
+     "prompt": "The occupation lasted from the year 1755 to the year 17",
+     "answer": "60",
+     "contrast": "54",
+     "yy": 55,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1899,
+     "contrast_id": 4051
+    },
+    {
+     "prompt": "The war lasted from the year 1769 to the year 17",
+     "answer": "70",
+     "contrast": "68",
+     "yy": 69,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 2154,
+     "contrast_id": 3104
+    },
+    {
+     "prompt": "The reign lasted from the year 1767 to the year 17",
+     "answer": "68",
+     "contrast": "66",
+     "yy": 67,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 3104,
+     "contrast_id": 2791
+    },
+    {
+     "prompt": "The dynasty lasted from the year 1776 to the year 17",
+     "answer": "78",
+     "contrast": "75",
+     "yy": 76,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 3695,
+     "contrast_id": 2425
+    },
+    {
+     "prompt": "The drought lasted from the year 1752 to the year 17",
+     "answer": "60",
+     "contrast": "51",
+     "yy": 52,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1899,
+     "contrast_id": 4349
+    },
+    {
+     "prompt": "The expedition lasted from the year 1775 to the year 17",
+     "answer": "76",
+     "contrast": "74",
+     "yy": 75,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 4304,
+     "contrast_id": 4524
+    },
+    {
+     "prompt": "The dynasty lasted from the year 1759 to the year 17",
+     "answer": "60",
+     "contrast": "58",
+     "yy": 59,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1899,
+     "contrast_id": 3365
+    },
+    {
+     "prompt": "The conflict lasted from the year 1771 to the year 17",
+     "answer": "75",
+     "contrast": "70",
+     "yy": 71,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 2425,
+     "contrast_id": 2154
+    },
+    {
+     "prompt": "The drought lasted from the year 1724 to the year 17",
+     "answer": "50",
+     "contrast": "23",
+     "yy": 24,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1120,
+     "contrast_id": 1954
+    },
+    {
+     "prompt": "The reign lasted from the year 1756 to the year 17",
+     "answer": "59",
+     "contrast": "55",
+     "yy": 56,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 3270,
+     "contrast_id": 2816
+    },
+    {
+     "prompt": "The occupation lasted from the year 1761 to the year 17",
+     "answer": "65",
+     "contrast": "60",
+     "yy": 61,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 2996,
+     "contrast_id": 1899
+    },
+    {
+     "prompt": "The reign lasted from the year 1751 to the year 17",
+     "answer": "52",
+     "contrast": "50",
+     "yy": 51,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 4309,
+     "contrast_id": 1120
+    },
+    {
+     "prompt": "The conflict lasted from the year 1703 to the year 17",
+     "answer": "18",
+     "contrast": "02",
+     "yy": 3,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1507,
+     "contrast_id": 2999
+    },
+    {
+     "prompt": "The reign lasted from the year 1719 to the year 17",
+     "answer": "20",
+     "contrast": "18",
+     "yy": 19,
+     "source": "generated, template of Hanna et al. (2023)",
+     "answer_id": 1238,
+     "contrast_id": 1507
     }
    ]
   }
