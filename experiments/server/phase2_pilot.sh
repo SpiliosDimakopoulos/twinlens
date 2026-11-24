@@ -32,6 +32,7 @@ python3 -m venv .venv
 PY=.venv/bin/python
 log "setup done; $(nproc) cpus; $(free -g | awk '/Mem/{print $2}') GB"
 
+step clt_prepare $PY experiments/gemma_clt_prepare.py  # the twin reads the CLT from its own cache
 for tc in plt clt426k; do
   for d in none ln attn both; do
     step "atp_${tc}_${d}" $PY experiments/atp_baseline.py --model gemma2 --transcoders "$tc" --detach "$d"
