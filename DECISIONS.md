@@ -427,3 +427,12 @@ nothing detached), so that "attribution patching predicts far better than the gr
 tested on prompts we did not write. Reading as for D9: the claim replicates on a model if the
 interval of the paired Δρ (AtP − graph today, and AtP − Fix B) on the external set lies above
 zero.
+
+**Implementation change, 2026-11-24 (before any D10 number).** Through `feature_intervention`,
+one Gemma CLT prompt took about 110 minutes: about 450 single forward passes, with the vocab
+unembedded at every position and, for T2, an extra clean pass per call. Interventions now run
+through `twinlens/ct/fast.py`, a batched engine with the same semantics: live `encode_layer`
+activations, Δ = value − live, and Δ · W_dec added at the feature-output hook. Only the last
+position is unembedded, and the T2 patterns are cached once per prompt. `tests/test_ct.py`
+checks that it equals `feature_intervention` to 1e-4 (PLT and CLT, T1 and T2). The design of
+D10 is unchanged. The one CLT prompt run with the old path is discarded unread.

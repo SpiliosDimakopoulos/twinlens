@@ -243,7 +243,7 @@ def test_sweep_one_prompt_end_to_end(model):
     real = tiny_llama()
     real.reset_hooks(including_permanent=True)
     p = {"pid": "t-00", "prompt": PROMPT, "answer_id": TARGET, "contrast_id": 3}
-    args = SimpleNamespace(max_feature_nodes=None, batch_size=64)
+    args = SimpleNamespace(max_feature_nodes=None, batch_size=64, chunk=7)
     with special_ids(model, [0]):
         grads = cs.atp_grads(real, PROMPT, TARGET)
         res = cs.main_prompt(model, p, grads, args)
@@ -256,3 +256,51 @@ def test_sweep_one_prompt_end_to_end(model):
     assert set(d.truth) == {"T1", "T2"} and set(d.s) == set(cs.DOSE)
     ablated = d[(d.s == 0.0) & (d.truth == "T1")]
     assert np.isfinite(ablated[["pred_G1", "pred_G3", "pred_atp", "real_dm"]].to_numpy()).all()
+
+
+def tiny_clt():
+    from circuit_tracer import ReplacementModel
+    from circuit_tracer.transcoder.cross_layer_transcoder import CrossLayerTranscoder
+
+    base = tiny_llama()
+    torch.manual_seed(1)
+    clt = CrossLayerTranscoder(
+        n_layers=base.cfg.n_layers,
+        d_transcoder=32,
+        d_model=base.cfg.d_model,
+        lazy_decoder=False,
+        feature_input_hook="hook_resid_mid",
+        feature_output_hook="hook_mlp_out",
+        device=torch.device("cpu"),
+        dtype=torch.float32,
+    )
+    for _, p in clt.named_parameters():
+        nn.init.uniform_(p, a=-0.5, b=0.5)
+    model = ReplacementModel.from_config(base.cfg, clt)
+    model.load_state_dict(base.state_dict(), strict=False)
+    return model
+
+
+@pytest.mark.parametrize("kind", ["plt", "clt"])
+@pytest.mark.parametrize("frozen", [False, True])
+def test_batched_intervener_matches_feature_intervention(model, kind, frozen):
+    from twinlens.ct.fast import Intervener
+
+    m = model if kind == "plt" else tiny_clt()
+    with special_ids(m, [0]):
+        _, acts = m.get_activations(PROMPT)
+        nz = acts.nonzero().tolist()
+        feats = [tuple(x) for x in nz if x[1] > 0][:12]
+        a0 = {f: float(acts[f]) for f in feats}
+        fast = Intervener(m, PROMPT, feats, freeze_attention=frozen)
+        rows = [
+            [0.0] * len(feats),  # ablate everything
+            [float("nan")] * len(feats),  # clean
+            [a0[f] * 3 if i % 3 == 0 else float("nan") for i, f in enumerate(feats)],
+            [0.0 if i < 5 else float("nan") for i in range(len(feats))],
+        ]
+        got = fast.run(torch.tensor(rows), chunk=3)
+        for r, row in enumerate(rows):
+            set_to = [(f, v) for f, v in zip(feats, row, strict=True) if v == v]
+            want = iv.last_logits(m, PROMPT, set_to, freeze_attention=frozen)
+            torch.testing.assert_close(got[r], want, rtol=1e-4, atol=1e-4)

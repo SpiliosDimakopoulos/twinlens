@@ -29,6 +29,7 @@ from common import RESULTS, ROOT, write_parquet
 
 from twinlens.ct import graph_math as gm
 from twinlens.ct import interventions as iv
+from twinlens.ct.fast import Intervener
 
 KS = (10, 30, 100, 300, 1000)
 DOSE = (-2.0, 0.0, 2.0, 5.0, 10.0)
@@ -194,11 +195,53 @@ def main_prompt(model, p: dict, grads: torch.Tensor, args) -> dict[str, pd.DataF
         rankings[f"R6_{s}"] = np.array(order)
     ks = sorted({min(k, nc) for k in KS})
     a, c = p["answer_id"], p["contrast_id"]
-    clean = iv.metrics(iv.last_logits(model, p["prompt"]), a, c)
+    nan = float("nan")
+    index_of = {f: i for i, f in enumerate(cand)}
+
+    # Every intervention of this prompt is one row of a [rows, n_cand] value matrix (NaN = leave
+    # alone), run in batches by fast.Intervener (same semantics as feature_intervention).
+    rows: list[torch.Tensor] = []
+    meta: list[tuple] = []
+
+    def add(kind: tuple, zero_idx=None, keep_idx=None, single=None):
+        v = torch.full((nc,), nan)
+        if zero_idx is not None:
+            v[torch.as_tensor(zero_idx, dtype=torch.long)] = 0.0
+        if keep_idx is not None:  # zero every candidate except these
+            v[:] = 0.0
+            v[torch.as_tensor(keep_idx, dtype=torch.long)] = nan
+        if single is not None:
+            v[single[0]] = single[1]
+        rows.append(v)
+        meta.append(kind)
+
+    add(("clean",))
+    add(("none",), zero_idx=list(range(nc)))
+    for name, order in rankings.items():
+        order = list(order)
+        for k in ks:
+            add(("keep", name, k), keep_idx=order[:k])
+            add(("remove", name, k), zero_idx=order[:k])
+    for v, x in info.items():  # the default prune_graph node set of each variant
+        idx = [index_of[f] for f in x["pruned"]]
+        add(("keep", f"prune_{v}", len(idx)), keep_idx=idx)
+        add(("remove", f"prune_{v}", len(idx)), zero_idx=idx)
+    top = list(rankings["R1"][:N_DOSE])
+    rest = [i for i in range(nc) if i not in set(top)]
+    rnd = random.Random(f"{p['pid']}-dose").sample(rest, min(N_DOSE, len(rest)))
+    for sel, idxs in (("top", top), ("random", rnd)):
+        for i in idxs:
+            for s in DOSE:
+                add(("dose", sel, int(i), s), single=(int(i), s * float(act[i])))
+    values = torch.stack(rows)
 
     curves, dose = [], []
     for truth, frozen in TRUTHS.items():
-        none = iv.metrics(iv.ablate(model, p["prompt"], cand, freeze_attention=frozen), a, c)
+        logits = Intervener(model, p["prompt"], cand, freeze_attention=frozen).run(
+            values, chunk=args.chunk
+        )
+        res = [iv.metrics(lg, a, c) for lg in logits]
+        clean, none = res[0], res[1]
         base = {
             "pid": p["pid"],
             "truth": truth,
@@ -206,75 +249,33 @@ def main_prompt(model, p: dict, grads: torch.Tensor, args) -> dict[str, pd.DataF
             **{f"full_{k}": v for k, v in clean.items()},
             **{f"none_{k}": v for k, v in none.items()},
         }
-        for name, order in rankings.items():
-            cur = iv.faithfulness_curve(
-                model,
-                p["prompt"],
-                cand,
-                list(order),
-                ks,
-                a,
-                c,
-                freeze_attention=frozen,
-                reference=(clean, none),
-            )
-            for k, kp, rm in zip(cur["k"], cur["keep"], cur["remove"], strict=True):
-                curves.append(
+        pending: dict[tuple, dict] = {}
+        for kind, m in zip(meta, res, strict=True):
+            if kind[0] in ("keep", "remove"):
+                row = pending.setdefault(kind[1:], {**base, "ranking": kind[1], "k": kind[2]})
+                row.update({f"{kind[0]}_{q}": val for q, val in m.items()})
+            elif kind[0] == "dose":
+                _, sel, i, s = kind
+                f, a0 = cand[i], float(act[i])
+                da = (s - 1.0) * a0
+                dose.append(
                     {
-                        **base,
-                        "ranking": name,
-                        "k": k,
-                        **{f"keep_{q}": v for q, v in kp.items()},
-                        **{f"remove_{q}": v for q, v in rm.items()},
+                        "pid": p["pid"],
+                        "truth": truth,
+                        "selection": sel,
+                        "layer": f[0],
+                        "pos": f[1],
+                        "feature": f[2],
+                        "act0": a0,
+                        "s": s,
+                        "real_dm": m["m"] - clean["m"],
+                        "real_ddld": m["dld"] - clean["dld"],
+                        **{f"pred_{v}": da * per[v]["total"][i] for v in VARIANTS},
+                        "pred_atp": da * atp[i],
+                        **{f"in_{v}": f in set(info[v]["feats"]) for v in VARIANTS},
                     }
                 )
-        for v, x in info.items():  # the default prune_graph node set of each variant
-            keep_set = set(x["pruned"])
-            rest = [f for f in cand if f not in keep_set]
-            kp = iv.metrics(iv.ablate(model, p["prompt"], rest, freeze_attention=frozen), a, c)
-            rm = iv.metrics(
-                iv.ablate(model, p["prompt"], sorted(keep_set), freeze_attention=frozen), a, c
-            )
-            curves.append(
-                {
-                    **base,
-                    "ranking": f"prune_{v}",
-                    "k": len(keep_set),
-                    **{f"keep_{q}": val for q, val in kp.items()},
-                    **{f"remove_{q}": val for q, val in rm.items()},
-                }
-            )
-
-        top = list(rankings["R1"][:N_DOSE])
-        rest = [i for i in range(nc) if i not in set(top)]
-        rnd = random.Random(f"{p['pid']}-dose").sample(rest, min(N_DOSE, len(rest)))
-        for sel, idxs in (("top", top), ("random", rnd)):
-            for i in idxs:
-                f, a0 = cand[i], float(act[i])
-                for s in DOSE:
-                    m = iv.metrics(
-                        iv.last_logits(model, p["prompt"], [(f, s * a0)], freeze_attention=frozen),
-                        a,
-                        c,
-                    )
-                    da = (s - 1.0) * a0
-                    dose.append(
-                        {
-                            "pid": p["pid"],
-                            "truth": truth,
-                            "selection": sel,
-                            "layer": f[0],
-                            "pos": f[1],
-                            "feature": f[2],
-                            "act0": a0,
-                            "s": s,
-                            "real_dm": m["m"] - clean["m"],
-                            "real_ddld": m["dld"] - clean["dld"],
-                            **{f"pred_{v}": da * per[v]["total"][i] for v in VARIANTS},
-                            "pred_atp": da * atp[i],
-                            **{f"in_{v}": f in set(info[v]["feats"]) for v in VARIANTS},
-                        }
-                    )
+        curves.extend(pending.values())
     st = pd.DataFrame(stats).assign(pid=p["pid"], n_cand=nc)
     return {"curves": pd.DataFrame(curves), "dose": pd.DataFrame(dose), "graphs": st}
 
@@ -287,6 +288,7 @@ def main() -> None:
     ap.add_argument("--tag", default="")
     ap.add_argument("--max-feature-nodes", type=int, default=None)
     ap.add_argument("--batch-size", type=int, default=256)
+    ap.add_argument("--chunk", type=int, default=16, help="intervention sets per batched forward")
     ap.add_argument("--max-minutes", type=float, default=None, help="stop cleanly after this")
     args = ap.parse_args()
     out = RESULTS / f"raw_d10_{args.tc}{args.tag}"
