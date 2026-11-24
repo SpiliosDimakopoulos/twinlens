@@ -304,3 +304,28 @@ def test_batched_intervener_matches_feature_intervention(model, kind, frozen):
             set_to = [(f, v) for f, v in zip(feats, row, strict=True) if v == v]
             want = iv.last_logits(m, PROMPT, set_to, freeze_attention=frozen)
             torch.testing.assert_close(got[r], want, rtol=1e-4, atol=1e-4)
+
+
+def test_real_model_context_restores_the_replacement_model(model):
+    from twinlens.ct.audit import real_gradient
+
+    before = graph_of(model)
+    with special_ids(model, [0]):
+        logits_before = iv.last_logits(model, PROMPT)
+        real_gradient(model, PROMPT, TARGET)
+        logits_after = iv.last_logits(model, PROMPT)
+    after = graph_of(model)
+    torch.testing.assert_close(after.adjacency_matrix, before.adjacency_matrix)
+    torch.testing.assert_close(logits_after, logits_before)
+
+
+def test_audit_report(model):
+    from twinlens.ct.audit import audit_graph, to_markdown
+
+    g = graph_of(model)
+    with special_ids(model, [0]):
+        r = audit_graph(model, g, n_check=5)
+    assert r["checked"] >= 5 and len(r["nodes"]) == r["checked"]
+    # on a tiny model the first-order gradient tracks real single-feature ablations closely
+    assert r["atp_vs_real_spearman"] > 0.8
+    assert "attribution patching" in to_markdown(r)
