@@ -27,7 +27,7 @@ fi
 command -v /usr/bin/time >/dev/null || (apt-get -qq update && apt-get -qq install -y time >/dev/null)
 python3 -m venv .venv
 .venv/bin/pip install -q --upgrade pip
-.venv/bin/pip install -q torch==2.9.1
+.venv/bin/pip install -q torch==2.9.1 --index-url https://download.pytorch.org/whl/cpu
 .venv/bin/pip install -q -e ../circuit-tracer -e ".[dev]"
 PY=.venv/bin/python
 log "setup done; $(nproc) cpus; $(free -g | awk '/Mem/{print $2}') GB"
