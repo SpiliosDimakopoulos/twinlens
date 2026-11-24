@@ -40,6 +40,7 @@ step d10_clt_atp $PY experiments/circuits_sweep.py --tc clt --phase atp --per-fa
 step d10_clt_main $PY experiments/circuits_sweep.py --tc clt --phase main --per-family 20 --max-minutes 600
 
 # 2. D9 external sweeps, then attribution patching on the same edits
+step prompts_gpt2 $PY experiments/build_external_prompts.py --model gpt2 --per-family 100  # D9: N = 100
 step ext_gpt2 $PY experiments/fidelity_sweep.py --model gpt2 --prompts external --max-minutes 120
 step ext_gemma2_clt $PY experiments/fidelity_sweep.py --model gemma2 --transcoders clt426k \
   --prompts external --n-top 3 --n-random 3 --max-minutes 360
