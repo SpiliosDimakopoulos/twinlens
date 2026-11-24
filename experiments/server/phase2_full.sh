@@ -35,9 +35,9 @@ PY=.venv/bin/python
 log "setup done; $(nproc) cpus; $(free -g | awk '/Mem/{print $2}') GB"
 step clt_prepare $PY experiments/gemma_clt_prepare.py
 
-# 1. D10, CLT (primary)
+# 1. D10, CLT (primary; batched engine, fast.py)
 step d10_clt_atp $PY experiments/circuits_sweep.py --tc clt --phase atp --per-family 20
-step d10_clt_main $PY experiments/circuits_sweep.py --tc clt --phase main --per-family 20 --max-minutes 600
+step d10_clt_main $PY experiments/circuits_sweep.py --tc clt --phase main --per-family 20 --max-minutes 900
 
 # 2. D9 external sweeps, then attribution patching on the same edits
 step prompts_gpt2 $PY experiments/build_external_prompts.py --model gpt2 --per-family 100  # D9: N = 100
