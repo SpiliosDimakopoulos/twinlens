@@ -420,3 +420,10 @@ Both now add a zero leaf instead (`tests/test_atp.py`, `tests/test_ct.py`). Cons
 - in D10-C, "nothing detached" is the recomputed value, not "the existing value";
 - the comparison with attribution patching posted on circuit-tracer PR #123 must be corrected
   there once the recomputed numbers exist.
+
+**Addition, 2026-11-24 (before any external number).** Attribution patching is also computed
+on the D9 external edits (`atp_baseline.py --prompts external`, GPT-2, Gemma PLT and CLT;
+nothing detached), so that "attribution patching predicts far better than the graph" is
+tested on prompts we did not write. Reading as for D9: the claim replicates on a model if the
+interval of the paired Δρ (AtP − graph today, and AtP − Fix B) on the external set lies above
+zero.

@@ -68,6 +68,12 @@ def main() -> None:
     ap.add_argument("--transcoders", choices=["plt", "clt426k"], default="plt")
     ap.add_argument("--small", action="store_true", help="the --small sweep's edits")
     ap.add_argument(
+        "--prompts",
+        choices=["dev", "external"],
+        default="dev",
+        help="the sweep's edits on the development or the external (D9) prompts",
+    )
+    ap.add_argument(
         "--detach",
         choices=list(DETACH),
         default="none",
@@ -78,7 +84,8 @@ def main() -> None:
     if args.transcoders == "clt426k":
         tag += "_clt"
     small = "_small" if args.small else ""
-    df = pd.read_parquet(RESULTS / f"fidelity{small}{tag}.parquet")
+    ext = "_ext" if args.prompts == "external" else ""
+    df = pd.read_parquet(RESULTS / f"fidelity{small}{tag}{ext}.parquet")
     if args.model == "gpt2":
         from twinlens.twin.transcoders import TranscoderSet
 
@@ -106,7 +113,7 @@ def main() -> None:
         print(f"prompt {pid}: {len(g)} edits, target id {target}", flush=True)
     res = df[list(EDIT_KEY)].assign(atp_dlogp=out)
     det = "" if args.detach == "none" else f"_detach-{args.detach}"
-    path = RESULTS / f"fidelity_atp{small}{tag}{det}.parquet"
+    path = RESULTS / f"fidelity_atp{small}{tag}{ext}{det}.parquet"
     write_parquet(res, path)
     print(f"wrote {len(res)} rows -> {path}")
 
