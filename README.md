@@ -84,7 +84,7 @@ From 8,064 edits on GPT-2 small (56 prompts, 8 task families). Full write-up:
   go from ρ 0.01 to 0.59.
 - **Third model.** On Gemma-2-2B with Gemma Scope transcoders (17,472 edits, all 26 layers) the
   fix raises ρ from 0.21 to 0.36 (Δρ +0.15 [0.12, 0.18]) and right-direction agreement from 77%
-  to 87%. The comparison with attribution patching on Gemma is being recomputed. Report §4.9.
+  to 87%. Attribution patching through the real model again predicts far better (ρ 0.96 with these transcoders, 0.95 with the cross-layer transcoder circuit-tracer uses). Report §4.8–4.10.
 - **Spotting bad predictions.** A logistic model over nine signals from the unedited run flags
   failures with AUROC 0.84 on edits that move the answer. Disagreement between today's graph
   and the fixed graph is an even better warning (0.94).

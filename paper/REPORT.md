@@ -8,11 +8,11 @@
 >   the script that computed it detached every layer's MLP output. That cut every path through
 >   later MLPs, so it was not attribution patching (DECISIONS.md D10, deviation;
 >   `tests/test_atp.py`).
-> - **What changes.** With the correct gradient, attribution patching predicts the GPT-2 edits
->   far better than any graph level: ρ 0.95, not 0.38. The claim that Fix B beats attribution
->   patching is withdrawn.
-> - **What is pending.** The Gemma-2-2B comparisons (§4.9, §4.10, §4.12) are being recomputed
->   and are left out until then.
+> - **What changes.** With the correct gradient, attribution patching predicts the edits far
+>   better than any graph level on all three models: ρ 0.95 on GPT-2 (not 0.38), 0.96 on
+>   Gemma-2-2B with Gemma Scope transcoders (not 0.31), and 0.95 with the CLT (not 0.39). The
+>   claim that Fix B beats or ties attribution patching is withdrawn.
+> - **What was recomputed.** §4.8–4.10 and §4.12 are recomputed with the corrected gradient.
 > - **Title.** The previous title, "Attribution graphs fail because of the derivatives they
 >   drop, not because they are linear", is withdrawn as well (§4.8).
 
@@ -65,11 +65,19 @@ Five findings:
    on the edges the trust model clears, and 22% on those it flags.
 
 5. **A gradient through the real model predicts these edits far better than any graph.**
-   Attribution patching, one backward pass through GPT-2 itself, reaches ρ = 0.95 and 96% sign
-   agreement on the same edits, against 0.20 for today's graph and 0.53 for Fix B (§4.8). The
-   same gradient with LayerNorm scales and attention patterns detached falls to 0.53. So the
-   graph's two simplifications cost about the same: freezing those derivatives, and replacing
-   the MLPs with transcoders. Fix B removes the first and leaves the second.
+   Attribution patching is one backward pass through the model itself. On the same edits it
+   reaches:
+   - ρ = 0.95 on GPT-2, against 0.20 for today's graph and 0.53 for Fix B;
+   - 0.96 on Gemma-2-2B with per-layer transcoders, against 0.21 and 0.36;
+   - 0.95 with the cross-layer transcoder that circuit-tracer uses, against 0.27 and 0.40
+     (§4.8).
+
+   Sign agreement is 96–99%, and it names 82–85% of each prompt's ten most important edited
+   features, against 40–57% for the graph (§4.12). With LayerNorm scales and attention
+   patterns detached, the same gradient falls to 0.52–0.53 on every model. So the graph's
+   error has two sources: frozen derivatives, and the replacement of MLPs by transcoders. The
+   replacement costs at least as much as the frozen derivatives. Fix B removes only the
+   frozen derivatives.
 
 Effects in this study are small: only 9.0% of edits move the output by more than 0.05 nats and
 96 edits by more than 0.2 nats. The rank and sign results are the robust ones; the
@@ -450,21 +458,39 @@ is:
 - −11 pp [−14, −7] in sign agreement;
 - −14 pp [−19, −10] within tolerance.
 
+The same holds on both Gemma-2-2B replacements (ρ with the real effect, 95% intervals over
+prompts):
+
+| predictor | GPT-2 (PLT) | Gemma-2-2B (PLT) | Gemma-2-2B (CLT 426K) |
+|---|---|---|---|
+| Graph today | 0.20 | 0.21 | 0.27 |
+| Fix B | 0.53 | 0.36 | 0.40 |
+| Attribution patching | **0.95** [0.94, 0.95] | **0.96** [0.95, 0.96] | **0.95** [0.94, 0.95] |
+| … LayerNorm scales detached | 0.67 | 0.65 | 0.62 |
+| … attention patterns detached | 0.61 | 0.76 | 0.78 |
+| … both detached | 0.53 | 0.53 | 0.52 |
+| Fix B − attribution patching | −0.42 [−0.46, −0.38] | −0.60 [−0.63, −0.57] | −0.55 [−0.57, −0.52] |
+| Fix B − (both detached) | −0.00 [−0.07, 0.07] | −0.17 [−0.22, −0.12] | −0.12 [−0.15, −0.08] |
+
 The edits are small enough that the real model responds almost linearly, so a first-order
 predictor through the real model gets nearly everything right.
 
-**Two sources of error, of about equal size.**
+**Two sources of error.**
 1. **Frozen derivatives.** Detaching the LayerNorm scales and attention patterns in the
-   real-model gradient takes ρ from 0.95 to 0.53.
+   real-model gradient takes ρ from 0.95 to 0.52–0.53 on every model.
 2. **The replacement.** Keeping those derivatives but propagating through transcoders, with
-   frozen gates and error terms, instead of through the real MLPs, also takes ρ from 0.95 to
-   0.53 (Fix B).
+   frozen gates and error terms, instead of through the real MLPs, takes ρ from 0.95 to 0.53
+   on GPT-2 and to 0.36–0.40 on Gemma (Fix B).
 
-With both, ρ is 0.20, which is today's graph. The detached gradient and Fix B cannot be told
-apart in ρ (Δρ −0.00 [−0.07, 0.07]).
+With both, ρ is 0.20–0.27, which is today's graph. The replacement costs as much as the frozen
+derivatives on GPT-2 and more on Gemma: there Fix B is below the detached gradient by 0.12 to
+0.17.
 
 Fix B removes the first source. The second is a property of the transcoders, and no change to
 how the graph is differentiated can repair it.
+
+On the CLT, attribution patching also predicts circuit-tracer's frozen-attention intervention
+well (ρ 0.78, sign agreement 95%), though it is a first-order expansion of the live model.
 
 Versions up to 1.2 reported ρ 0.38 here, from a truncated gradient (see the correction at the
 top).
@@ -485,8 +511,8 @@ weaker than GPT-2's.
 The scope is the full model: 17,472 edits on 56 prompts (the GPT-2 prompt set). In each of the
 26 layers, 3 top and 3 random active features are each ablated and amplified (12 edits per layer
 per prompt). BOS is never edited. Unlike
-on Qwen3, the nonlinear replacement twin was run. Attribution patching on the real model is
-being recomputed (correction at the top) and is not shown.
+on Qwen3, the nonlinear replacement twin was run, and so was attribution patching on the real
+model (`experiments/atp_baseline.py --model gemma2`).
 
 | Level | ρ [95% CI] | sign agree | within tol (big) | catastrophic | mean err |
 |---|---|---|---|---|---|
@@ -495,9 +521,11 @@ being recomputed (correction at the top) and is not shown.
 | Fix A | 0.29 [0.25, 0.32] | 83.2% | 85.2% | 0.01% | 0.012 |
 | Fix B | 0.36 [0.33, 0.39] | 87.4% | 89.6% | 0.01% | 0.011 |
 | Nonlinear replacement twin | 0.23 [0.20, 0.25] | 82.1% | 79.5% | 0.02% | 0.033 |
+| Attribution patching (real Gemma) | 0.96 [0.95, 0.96] | 98.6% | 97.3% | 0.01% | 0.002 |
 
 Paired, Fix B − graph today is Δρ +0.15 [0.12, 0.18], +10 pp [7, 14] in sign agreement and
-+11 pp [8, 14] within tolerance on big edits. The gain holds in every task family: ρ rises on
++11 pp [8, 14] within tolerance on big edits. Attribution patching is far better than both
+(Fix B − attribution patching: Δρ −0.60 [−0.63, −0.57]; §4.8). The gain over today's graph holds in every task family: ρ rises on
 all eight, most on IOI (0.12 → 0.34), syntax (0.19 → 0.38) and narrative (0.28 → 0.45), least
 on code (0.31 → 0.38).
 
@@ -535,6 +563,7 @@ reported as a second ground truth.
 | Graph today | 0.27 [0.24, 0.30] | 74.6% | 68.3% | 0.29% | 0.025 |
 | Fix A | 0.33 [0.30, 0.36] | 74.0% | 70.5% | 0.18% | 0.021 |
 | Fix B | 0.40 [0.37, 0.42] | 79.0% | 74.5% | 0.13% | 0.019 |
+| Attribution patching (real Gemma) | 0.95 [0.94, 0.95] | 96.7% | 95.1% | 0.03% | 0.004 |
 
 Paired, Fix B − graph today is Δρ +0.13 [0.10, 0.16], +4 pp [1, 8] in sign agreement and
 +6 pp [1, 11] within tolerance on big edits (n = 1,198); it also has fewer catastrophic misses
@@ -549,8 +578,13 @@ family (most on IOI, 0.14 → 0.33, and arithmetic, 0.25 → 0.44; least on narr
 0.42 → 0.47) and grows with depth: by edited layer, Fix B's ρ rises from 0.15–0.35 in layers
 0–11 to 0.59–0.83 in layers 20–25, where it is highest of all levels at the last layer.
 
-The comparison with attribution patching on the CLT is being recomputed (correction at the
-top). Against circuit-tracer's frozen-attention ground truth, which agrees with the fully live one at
+Attribution patching on the real model ranks far better than every graph level on the CLT
+too:
+- Fix B − attribution patching is Δρ −0.55 [−0.57, −0.52];
+- −18 pp [−20, −15] in sign agreement;
+- −21 pp [−25, −17] within tolerance.
+
+Against circuit-tracer's frozen-attention ground truth, which agrees with the fully live one at
 ρ 0.80, Fix B's margin over the plain graph shrinks to Δρ +0.05 [0.02, 0.08] and Fix A ranks
 best (ρ 0.41 against 0.39 for Fix B): part of what Fix B restores is the attention response
 that this ground truth removes by construction.
@@ -605,9 +639,6 @@ of the effect.
 
 ### 4.12 Re-analysis: what the existing sweeps say about use
 
-*Columns and tests that involve attribution patching are being recomputed with the corrected
-gradient (see the correction at the top) and are left out until then.*
-
 No new runs. This section re-reads the sweeps of §4.1–4.11 with questions fixed before any number
 was computed (DECISIONS.md D10-0, `experiments/analyze_reanalysis.py`, block `reanalysis` of
 `summary.json`; 95% cluster bootstraps over prompts).
@@ -638,12 +669,12 @@ on edges against this truth (GPT-2 +0.22 vs +0.17, Gemma +0.07 vs +0.06 over the
 **Where something happens.** On big edits only, which are almost all top-selected features
 (random features rarely move the output: 11 to 33 big edits per model):
 
-| Model | ρ graph | ρ Fix B | within tol: graph / Fix B / "no change" | clipped mean error: graph / "no change" |
-|---|---|---|---|---|
-| GPT-2 | 0.24 | 0.66 | 54% / 80% / 75% | 0.65 / 0.13 |
-| Qwen3 | 0.62 | 0.78 | 52% / 62% / 59% | 0.47 / 0.21 |
-| Gemma PLT | 0.65 | 0.79 | 79% / 90% / 80% | 0.09 / 0.12 |
-| Gemma CLT | 0.53 | 0.55 | 68% / 75% / 68% | 0.17 / 0.14 |
+| Model | ρ graph | ρ Fix B | ρ AtP | within tol: graph / Fix B / AtP / "no change" | clipped mean error: graph / AtP / "no change" |
+|---|---|---|---|---|---|
+| GPT-2 | 0.24 | 0.66 | 0.89 | 54% / 80% / 94% / 75% | 0.65 / 0.04 / 0.13 |
+| Qwen3 | 0.62 | 0.78 | – | 52% / 62% / – / 59% | 0.47 / – / 0.21 |
+| Gemma PLT | 0.65 | 0.79 | 0.94 | 79% / 90% / 97% / 80% | 0.09 / 0.03 / 0.12 |
+| Gemma CLT | 0.53 | 0.55 | 0.90 | 68% / 75% / 95% / 68% | 0.17 / 0.04 / 0.14 |
 
 On the CLT, today's graph is no closer than "no change" on big edits, and its clipped mean error
 is larger.
@@ -652,15 +683,15 @@ A user typically asks which features matter most for a prompt. Per prompt, among
 ablations, the share of the 10 features with the largest predicted effect that are among the 10
 with the largest real effect (chance 0.14 on GPT-2 and Qwen3, 0.06 on Gemma):
 
-| Model | graph | Fix B | Fix B − graph |
-|---|---|---|---|
-| GPT-2 | 0.57 | 0.64 | +0.07 [0.03, 0.11] |
-| Qwen3 | 0.40 | 0.50 | +0.10 [0.04, 0.18] |
-| Gemma PLT | 0.40 | 0.56 | +0.16 [0.12, 0.20] |
-| Gemma CLT | 0.52 | 0.59 | +0.06 [0.02, 0.11] |
+| Model | graph | Fix B | AtP | Fix B − graph | Fix B − AtP |
+|---|---|---|---|---|---|
+| GPT-2 | 0.57 | 0.64 | 0.85 | +0.07 [0.03, 0.11] | −0.21 [−0.26, −0.17] |
+| Qwen3 | 0.40 | 0.50 | – | +0.10 [0.04, 0.18] | – |
+| Gemma PLT | 0.40 | 0.56 | 0.84 | +0.16 [0.12, 0.20] | −0.28 [−0.33, −0.24] |
+| Gemma CLT | 0.52 | 0.59 | 0.82 | +0.06 [0.02, 0.11] | −0.24 [−0.28, −0.20] |
 
 So today's graph names about half of the ten most important edited features. Fix B adds 6–16
-points. The pool is the edited features (top by direct effect plus random), not every active feature.
+points. One backward pass through the real model names more than four in five. The pool is the edited features (top by direct effect plus random), not every active feature.
 
 **Depth, CLT against PLT.** Lange et al. (2026) argue that CLTs rewrite deep circuits as shallow
 ones. On Gemma-2-2B, the plain CLT graph predicts better than the plain PLT graph for edits in
@@ -670,10 +701,14 @@ layers 0–19 (by +0.09 to +0.18 in ρ per bin, all intervals above zero), but w
 
 **Multiple comparisons.** The family is every paired difference behind a headline claim: Fix B −
 graph on four models and Fix B − attribution patching on three, four metrics each, 28 tests.
-It is recomputed once the corrected attribution-patching numbers exist. In the first run,
-before the correction, every gain in ρ over today's graph survived a Holm correction at 0.05.
-Three Fix B − graph claims did not survive: sign agreement on Qwen3 and on the CLT, and within
-tolerance on the CLT. §4.7 and §4.10 are worded accordingly.
+With the corrected gradient, 22 survive a Holm correction at 0.05, including:
+- every gain in ρ over today's graph;
+- every Fix B − attribution-patching difference in ρ, sign agreement and within tolerance, all
+  in favour of attribution patching.
+
+Four Fix B − graph claims do not survive: sign agreement on Qwen3 and on the CLT, within
+tolerance on the CLT, and catastrophic misses on Gemma PLT, which the report did not claim.
+§4.7 and §4.10 are worded accordingly.
 
 ## 5. Limitations
 
@@ -683,10 +718,11 @@ tolerance on the CLT. §4.7 and §4.10 are worded accordingly.
   uneven across layers (§4.9). Cross-layer transcoders were tested on one model only
   (Gemma-2-2B with the 426K CLT, §4.10), without the nonlinear replacement twin. Models beyond
   2B parameters remain untested.
-- **One gradient baseline, on one model so far.** §4.8 compares the graph with attribution
-  patching on GPT-2 only; Gemma-2-2B is being recomputed. Integrated-gradient variants (Marks
-  et al., 2024; Hanna et al., 2024) and AtP* (Kramár et al., 2024) were not run, and Qwen3 was
-  not tested.
+- **One gradient baseline.** §4.8 compares the graph with attribution patching on GPT-2 and
+  both Gemma-2-2B replacements. Integrated-gradient variants (Marks et al., 2024; Hanna et al.,
+  2024) and AtP* (Kramár et al., 2024) were not run, and Qwen3 was not tested. Because the edits
+  are small, first-order attribution patching is close to the truth. Larger, behaviour-changing
+  interventions (D10-B) may show it failing.
 - **Feature → feature edges are tested only for single edits on the development prompts.**
   §4.11 measures downstream features' responses for the edits of §4.1, §4.9 and §4.10, with
   20 targets per edit. Paths through several features and the trust model were not tested on
