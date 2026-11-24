@@ -86,7 +86,7 @@ def load(name: str) -> tuple[pd.DataFrame, list[str]]:
     sweep, atp = MODELS[name]
     df = pd.read_parquet(RESULTS / sweep)
     levels = [LIN, LN, FIX]
-    if atp:
+    if atp and (RESULTS / atp).exists():  # Gemma AtP is recomputed on the server (D10 deviation)
         a = pd.read_parquet(RESULTS / atp)
         check_edit_keys(df, a, f"{atp} vs {sweep}")
         df["atp_dlogp"] = a.atp_dlogp.to_numpy()

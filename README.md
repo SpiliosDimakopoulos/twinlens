@@ -63,23 +63,28 @@ Add `--json` for machine-readable output and `--top 20` for more arrows.
 From 8,064 edits on GPT-2 small (56 prompts, 8 task families). Full write-up:
 [report](https://spiliosdimakopoulos.github.io/twinlens/report/) ([PDF](docs/TwinLens_report.pdf)).
 
-| | today's graph | gradient through real GPT-2 | with the fix |
+| | today's graph | with the fix | gradient through real GPT-2 |
 |---|---|---|---|
-| rank agreement with the real effect (Spearman ρ) | 0.20 | 0.38 | 0.53 |
-| right direction, on edits that move the answer | 67% | 77% | 86% |
-| badly wrong (off by more than 1 nat) | 2.2% | 0.1% | 0.05% |
+| rank agreement with the real effect (Spearman ρ) | 0.20 | 0.53 | 0.95 |
+| right direction, on edits that move the answer | 67% | 86% | 96% |
+| badly wrong (off by more than 1 nat) | 2.2% | 0.05% | 0.0% |
+
+> **Correction (24 Nov 2026):** earlier versions gave 0.38 for the gradient through the real
+> model, from a script that cut every path through later MLPs. The corrected gradient predicts
+> far better than any graph. See the note at the top of the report.
 
 - **Why the graph fails.** Frozen LayerNorm causes most of the error and nearly all large
   misses, almost all of them for edits in the first three layers. Frozen attention causes most
   of the ranking error.
 - **The fix.** Keeping the LayerNorm and attention-softmax Jacobians gives a graph that is still
-  linear and matches the nonlinear twin. It also ranks and signs effects better than attribution
-  patching, a gradient through the real model (Δρ +0.15 [0.11, 0.19]). On Qwen3-0.6B the gain
+  linear and matches the nonlinear twin. A plain gradient through the real model (attribution patching) still
+  predicts far better (ρ 0.95). The rest of the graph's error comes from the transcoders, not
+  from the derivatives. On Qwen3-0.6B the gain
   over today's graph is smaller but holds on every metric (Δρ +0.12 [0.05, 0.20]). IOI prompts
   go from ρ 0.01 to 0.59.
 - **Third model.** On Gemma-2-2B with Gemma Scope transcoders (17,472 edits, all 26 layers) the
   fix raises ρ from 0.21 to 0.36 (Δρ +0.15 [0.12, 0.18]) and right-direction agreement from 77%
-  to 87%. It also beats attribution patching on Gemma (Δρ +0.05 [0.03, 0.08]). Report §4.9.
+  to 87%. The comparison with attribution patching on Gemma is being recomputed. Report §4.9.
 - **Spotting bad predictions.** A logistic model over nine signals from the unedited run flags
   failures with AUROC 0.84 on edits that move the answer. Disagreement between today's graph
   and the fixed graph is an even better warning (0.94).
